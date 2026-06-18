@@ -16,6 +16,7 @@
 - Design language (from prototype): accent cyan `#38bdf8` (dark)/`#0284c7` (light); semantic allow `#34d399`, block `#f87171`, warn `#fbbf24`, pending `#a78bfa`, observe `#22d3ee`; dark bg `#0b0f17`, surface `#111827`/`#161e2e`; Inter + JetBrains Mono; radii 10/7/999px; sidebar 248px + topbar.
 - Envelope contract: every API response is `{schema_version, schema, data}`; the Axios interceptor unwraps `.data` and normalizes errors.
 - One screen = one PR into macro branch `feature/admin-panel`. Every UI interaction has a Playwright scenario (family rule). All three suites (PHPUnit, Vitest, Playwright) green in CI before merge.
+- **Prototype source of truth:** recreate each screen pixel-faithfully from `docs/prototype/` (vendored approved design) using `docs/prototype-reference.md` as the map. Read the real `.jsx`/`styles.css`; recreate the visual output in the target stack — do not copy prototype internals verbatim.
 - No docmd site (README + internal `docs/` only).
 - `data-testid` convention: `agr-<area>` (e.g. `agr-shell`, `agr-nav-audit`, `agr-dashboard`, `agr-audit-row`, `agr-drawer`, `agr-save-bar`). Pages expose `data-state="loading|error|empty|ready"` on their root for E2E assertions.
 
@@ -123,7 +124,7 @@ it('normalizes an error envelope into ApiError', async () => {
 ```
 
 - [ ] **Step 3: Run → FAIL.** `npm i && npx vitest run tests/js/lib/api/client.test.ts`
-- [ ] **Step 4: Implement** `client.ts` (axios instance, response interceptor returns `res.data.data`, error interceptor → `ApiError{status,message,errors}`, XSRF-TOKEN header + withCredentials), `config.ts`, `types.ts` (all endpoint data shapes incl. the v1.1.0 additions), `endpoints.ts`, `queries.ts`, `demoState.tsx`, `App.tsx`, `main.tsx`, `index.ts`, `ScreenState.tsx`, `Shell.tsx` (sidebar groups Overview/Controls/Configure + topbar). `panel.css`: `@import "tailwindcss"; @theme { --color-accent: #38bdf8; ... }`.
+- [ ] **Step 4: Implement** `client.ts` (axios instance, response interceptor returns `res.data.data`, error interceptor → `ApiError{status,message,errors}`, XSRF-TOKEN header + withCredentials), `config.ts`, `types.ts` (all endpoint data shapes incl. the v1.1.0 additions), `endpoints.ts`, `queries.ts`, `demoState.tsx`, `App.tsx`, `main.tsx`, `index.ts`, `ScreenState.tsx`, `Shell.tsx` (sidebar groups Overview/Controls/Configure + topbar). `panel.css`: `@import "tailwindcss"; @theme` tokens transcribed verbatim from docs/prototype-reference.md (Design tokens section), both dark and light.
 - [ ] **Step 5: Run → PASS.**
 - [ ] **Step 6: App test** `App.test.tsx` — renders Shell, sidebar has 8 nav links, theme toggle flips `data-theme`. Run → PASS.
 - [ ] **Step 7: typecheck + build** — `npm run typecheck && npm run build` green; assets land in `public/vendor/ai-guardrails-admin`.
@@ -150,6 +151,8 @@ Each task below specifies only its screen-specific bindings, components, interac
 
 ### Task 3: Dashboard (`/`)
 
+**Prototype:** docs/prototype/app/pages-core.jsx → `Dashboard` function (line 49) (see docs/prototype-reference.md §4.1 Dashboard).
+
 **Files:** Create `resources/js/pages/DashboardPage.tsx`, `resources/js/components/{Sparkline,AreaChart,StatCard}.tsx`; `tests/js/pages/dashboard.test.tsx`; `tests/e2e/dashboard.spec.ts`.
 
 **Binds:** `useOverview()` (`/overview`), `useAuditTrend()` (`/audit/trend`).
@@ -160,6 +163,8 @@ Each task below specifies only its screen-specific bindings, components, interac
 ---
 
 ### Task 4: Injection Audit (`/audit`)
+
+**Prototype:** docs/prototype/app/pages-core.jsx → `InjectionAudit` function (line 145) (see docs/prototype-reference.md §4.2 Injection Audit).
 
 **Files:** `pages/AuditPage.tsx`, `components/{DataTable,Drawer}.tsx`; `tests/js/pages/audit.test.tsx`; `tests/e2e/audit.spec.ts`.
 
@@ -172,6 +177,8 @@ Each task below specifies only its screen-specific bindings, components, interac
 
 ### Task 5: Tool Firewall (`/firewall`)
 
+**Prototype:** docs/prototype/app/pages-core.jsx → `ToolFirewall` function (line 325) (see docs/prototype-reference.md §4.3 Tool Firewall).
+
 **Files:** `pages/FirewallPage.tsx`, `components/{Chips,Toggle,SaveBar}.tsx`; tests as recipe.
 
 **Binds:** `useFirewall()` (`/firewall` rejections), `useSettings()`+`useUpdateSettings()` (posture: `tool_firewall.enabled`, `tool_firewall.owner_keys`, `tool_firewall.reject_unknown_arguments`; read-only `tool_authorization.*`).
@@ -182,6 +189,8 @@ Each task below specifies only its screen-specific bindings, components, interac
 ---
 
 ### Task 6: Output Handler (`/output`)
+
+**Prototype:** docs/prototype/app/pages-core.jsx → `OutputHandler` function (line 482) (see docs/prototype-reference.md §4.4 Output Handler).
 
 **Files:** `pages/OutputPage.tsx`; tests as recipe.
 
@@ -194,6 +203,8 @@ Each task below specifies only its screen-specific bindings, components, interac
 
 ### Task 7: Approvals (`/approvals`)
 
+**Prototype:** docs/prototype/app/pages-ops.jsx → `Approvals` function (line 34) (see docs/prototype-reference.md §4.5 Approvals).
+
 **Files:** `pages/ApprovalsPage.tsx`; tests as recipe.
 
 **Binds:** `useApprovals()` (`/approvals` incl. `tool`,`arguments`,`requested_ago`,`expires_in`), `useApprove(token)`, `useReject(token)`.
@@ -204,6 +215,8 @@ Each task below specifies only its screen-specific bindings, components, interac
 ---
 
 ### Task 8: Settings (`/settings`)
+
+**Prototype:** docs/prototype/app/pages-ops.jsx → `Settings` function (line 177) (see docs/prototype-reference.md §4.6 Settings).
 
 **Files:** `pages/SettingsPage.tsx`; tests as recipe.
 
@@ -216,6 +229,8 @@ Each task below specifies only its screen-specific bindings, components, interac
 
 ### Task 9: Change History (`/settings/audit`)
 
+**Prototype:** docs/prototype/app/pages-ops.jsx → `SettingsAudit` function (line 679) (see docs/prototype-reference.md §4.7 Settings Change History).
+
 **Files:** `pages/ChangeHistoryPage.tsx`; tests as recipe.
 
 **Binds:** `useSettingsChanges(limit)` (`/settings/changes`).
@@ -226,6 +241,8 @@ Each task below specifies only its screen-specific bindings, components, interac
 ---
 
 ### Task 10: Try / Sandbox (`/try`)
+
+**Prototype:** docs/prototype/app/pages-ops.jsx → `TrySandbox` function (line 566) (see docs/prototype-reference.md §4.8 Try · Sandbox).
 
 **Files:** `pages/TryPage.tsx`; tests as recipe.
 
