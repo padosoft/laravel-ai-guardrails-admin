@@ -628,6 +628,123 @@ describe('AuditPage', () => {
   });
 
   // ------------------------------------------------------------------
+  // Fix 4: client-side verdict sub-filter (Observed / Allowed) from mixed page
+  // The server returns blocked=false for both Observed and Allowed; the client
+  // then sub-filters by rule_id presence so only the matching rows are shown.
+  // ------------------------------------------------------------------
+  it('Observed filter client-sub-filters: shows only rows with rule_id != null', async () => {
+    // Simulate a server that returns only blocked=false entries (as the real API does)
+    // Mixed page: id=102 (observed, rule_id set) + id=103 (allowed, rule_id null)
+    const blockedFalsePage: AuditListData = {
+      entries: [
+        {
+          id: 102,
+          blocked: false,
+          rule_id: 'sql_injection',
+          ruleset_version: 'v1',
+          prompt_preview: 'SELECT * FROM users WHERE…',
+          prompt_length: 55,
+          errored: false,
+          occurred_at: '2026-06-18T09:30:00+00:00',
+        },
+        {
+          id: 103,
+          blocked: false,
+          rule_id: null,
+          ruleset_version: 'v1',
+          prompt_preview: 'Hello, how are you today?',
+          prompt_length: 25,
+          errored: false,
+          occurred_at: '2026-06-18T09:00:00+00:00',
+        },
+      ],
+      next_cursor: null,
+    };
+
+    server.use(
+      http.get('*/audit', () =>
+        HttpResponse.json(envelope('audit.list', blockedFalsePage)),
+      ),
+      http.get('*/audit/:id', () => HttpResponse.json(envelope('audit.detail', detailFixtureRaw))),
+    );
+
+    renderAudit();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-audit')).toHaveAttribute('data-state', 'ready'),
+    );
+
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByLabelText('Verdict filter'), 'observed');
+
+    // Client-side sub-filter: only rule_id != null → only id=102 (OBSERVED)
+    await waitFor(() => {
+      const rows = screen.getAllByTestId('agr-audit-row');
+      expect(rows).toHaveLength(1);
+      expect(within(rows[0]).getByTestId('agr-verdict-badge')).toHaveTextContent(/observed/i);
+    });
+
+    // id=103 (allowed, rule_id=null) must NOT be visible
+    const allRows = screen.getAllByTestId('agr-audit-row');
+    expect(allRows).toHaveLength(1);
+  });
+
+  it('Allowed filter client-sub-filters: shows only rows with rule_id == null', async () => {
+    const blockedFalsePage: AuditListData = {
+      entries: [
+        {
+          id: 102,
+          blocked: false,
+          rule_id: 'sql_injection',
+          ruleset_version: 'v1',
+          prompt_preview: 'SELECT * FROM users WHERE…',
+          prompt_length: 55,
+          errored: false,
+          occurred_at: '2026-06-18T09:30:00+00:00',
+        },
+        {
+          id: 103,
+          blocked: false,
+          rule_id: null,
+          ruleset_version: 'v1',
+          prompt_preview: 'Hello, how are you today?',
+          prompt_length: 25,
+          errored: false,
+          occurred_at: '2026-06-18T09:00:00+00:00',
+        },
+      ],
+      next_cursor: null,
+    };
+
+    server.use(
+      http.get('*/audit', () =>
+        HttpResponse.json(envelope('audit.list', blockedFalsePage)),
+      ),
+      http.get('*/audit/:id', () => HttpResponse.json(envelope('audit.detail', detailFixtureRaw))),
+    );
+
+    renderAudit();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-audit')).toHaveAttribute('data-state', 'ready'),
+    );
+
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByLabelText('Verdict filter'), 'allowed');
+
+    // Client-side sub-filter: only rule_id == null → only id=103 (ALLOWED)
+    await waitFor(() => {
+      const rows = screen.getAllByTestId('agr-audit-row');
+      expect(rows).toHaveLength(1);
+      expect(within(rows[0]).getByTestId('agr-verdict-badge')).toHaveTextContent(/allowed/i);
+    });
+
+    // id=102 (observed, rule_id set) must NOT be visible
+    const allRows = screen.getAllByTestId('agr-audit-row');
+    expect(allRows).toHaveLength(1);
+  });
+
+  // ------------------------------------------------------------------
   // Drawer close
   // ------------------------------------------------------------------
   it('drawer can be closed', async () => {

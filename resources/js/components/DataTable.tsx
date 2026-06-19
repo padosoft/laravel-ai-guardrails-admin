@@ -48,7 +48,10 @@ export function DataTable<T extends { id: number | string }>({
               onKeyDown={
                 onRowClick
                   ? (e) => {
-                      if (e.key === 'Enter') onRowClick(row);
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onRowClick(row);
+                      }
                     }
                   : undefined
               }

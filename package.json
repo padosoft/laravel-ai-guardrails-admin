@@ -11,9 +11,15 @@
     ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
     "./style.css": { "default": "./dist/style.css" }
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "vite build && vite build --config vite.lib.config.ts && tsc -p tsconfig.lib.json",
     "e2e:serve": "node scripts/serve-e2e.mjs",
+    "prepack": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "npm run build && playwright test",

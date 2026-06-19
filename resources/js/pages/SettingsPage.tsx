@@ -152,23 +152,30 @@ function extractPosture(settings: Record<string, unknown>): SettingsPosture {
 }
 
 // ── Pattern validation ─────────────────────────────────────────────────────────
-// Validates that a pattern is a valid PCRE-style delimited pattern: /body/flags
-// or a bare regex body. Returns true if valid.
+// Client-side check validates DELIMITER STRUCTURE ONLY — does NOT compile the
+// pattern body with new RegExp. PCRE-only syntax (x/extended flag, lookaheads
+// not supported by JS, etc.) would throw in JS even when valid on the server,
+// which would block the global Save button for pre-existing server-side patterns.
+// Authoritative PCRE validation is done server-side (returns 422 per-pattern errors).
+//
+// Valid: starts with a non-alphanumeric delimiter char, has a matching closing
+// delimiter, followed by an optional run of flag letters. E.g. /body/iu, #body#x
+// Invalid: no delimiters at all (e.g. bare "[invalid").
 
 function isValidPattern(rx: string): boolean {
-  if (!rx.trim()) return false;
-  try {
-    // Must start and end with a delimiter (PCRE fully-delimited format)
-    const m = /^\/(.*)\/([a-z]*)$/s.exec(rx);
-    if (!m) {
-      // Not fully delimited — treat as invalid per spec requirement
-      return false;
-    }
-    new RegExp(m[1], m[2]);
-    return true;
-  } catch {
-    return false;
-  }
+  const trimmed = rx.trim();
+  if (!trimmed) return false;
+  // Delimiter must be a non-alphanumeric, non-backslash, non-whitespace char.
+  // PCRE commonly uses / # ~ @ ! but any such char is accepted here.
+  const delim = trimmed[0];
+  if (/[\w\s\\]/.test(delim)) return false;
+  // Find the closing delimiter (escaped delimiters inside body are not our concern)
+  const closingIdx = trimmed.lastIndexOf(delim, trimmed.length - 1);
+  // Closing delimiter must exist somewhere after position 0
+  if (closingIdx <= 0) return false;
+  // Everything after the closing delimiter must be optional flag letters only
+  const flags = trimmed.slice(closingIdx + 1);
+  return /^[a-zA-Z]*$/.test(flags);
 }
 
 // ── Dirty check ───────────────────────────────────────────────────────────────

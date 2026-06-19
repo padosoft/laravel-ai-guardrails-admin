@@ -480,6 +480,67 @@ describe('SettingsPage', () => {
   });
 
   // ------------------------------------------------------------------
+  // Fix 5: PCRE-only patterns do NOT disable the global Save button client-side
+  // ------------------------------------------------------------------
+  it('a PCRE-only pattern (x flag, PCRE syntax) is not flagged invalid client-side and does not disable Save', async () => {
+    withDefaultMocks();
+    renderSettings();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-settings')).toHaveAttribute('data-state', 'ready'),
+    );
+
+    const user = userEvent.setup();
+
+    // First dirty the form so SaveBar appears
+    const refusalInput = screen.getByTestId('agr-input-refusal-message');
+    await user.clear(refusalInput);
+    await user.type(refusalInput, 'Changed');
+
+    // Set a pattern with the 'x' (extended/verbose) flag — valid PCRE but throws in JS new RegExp
+    const patternInput = screen.getByTestId('agr-pattern-input-ignore_previous');
+    fireEvent.change(patternInput, { target: { value: '/\\bignore\\s+previous\\b/ix' } });
+
+    // No field error should appear for a structurally-valid delimited pattern
+    await waitFor(() => {
+      expect(screen.queryByTestId('agr-pattern-error-ignore_previous')).toBeNull();
+    });
+
+    // Save button must remain ENABLED (not disabled by the PCRE-only flag)
+    const saveBtn = screen.getByRole('button', { name: /save changes/i });
+    expect(saveBtn).not.toBeDisabled();
+  });
+
+  it('a non-delimited pattern string still shows invalid client-side and disables Save', async () => {
+    withDefaultMocks();
+    renderSettings();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-settings')).toHaveAttribute('data-state', 'ready'),
+    );
+
+    const user = userEvent.setup();
+
+    // Dirty the form first
+    const refusalInput = screen.getByTestId('agr-input-refusal-message');
+    await user.clear(refusalInput);
+    await user.type(refusalInput, 'Changed');
+
+    // Set a bare non-delimited string (no leading delimiter) — structurally invalid
+    const patternInput = screen.getByTestId('agr-pattern-input-ignore_previous');
+    fireEvent.change(patternInput, { target: { value: 'barepatternnodelimiter' } });
+
+    // Field error must appear
+    await waitFor(() => {
+      expect(screen.getByTestId('agr-pattern-error-ignore_previous')).toBeInTheDocument();
+    });
+
+    // Save button must be disabled
+    const saveBtn = screen.getByRole('button', { name: /save changes/i });
+    expect(saveBtn).toBeDisabled();
+  });
+
+  // ------------------------------------------------------------------
   // Error state
   // ------------------------------------------------------------------
   it('shows data-state=error when settings API fails', async () => {

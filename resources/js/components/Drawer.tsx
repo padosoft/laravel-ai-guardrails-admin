@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { type ReactNode, useEffect, useRef } from 'react';
+import { type ReactNode, useEffect, useLayoutEffect, useRef } from 'react';
 
 interface DrawerProps {
   title: string;
@@ -12,11 +12,17 @@ interface DrawerProps {
 
 export function Drawer({ title, sub, badge, onClose, children, footer }: DrawerProps) {
   const ref = useRef<HTMLDivElement>(null);
+  // Keep onClose in a ref so the mount-only effect always calls the latest callback
+  // without re-firing when callers pass new inline arrows on every render.
+  const onCloseRef = useRef(onClose);
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key === 'Tab' && ref.current) {
@@ -47,7 +53,10 @@ export function Drawer({ title, sub, badge, onClose, children, footer }: DrawerP
       document.removeEventListener('keydown', onKey);
       clearTimeout(t);
     };
-  }, [onClose]);
+  // Empty deps: mount-only. onClose is accessed via onCloseRef to avoid re-firing
+  // when parent re-renders (e.g. setSaving/setError) pass a new inline arrow.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <>

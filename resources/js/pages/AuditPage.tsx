@@ -315,6 +315,15 @@ export function AuditPage() {
 
   const showLoadMore = data?.next_cursor != null;
 
+  // Client-side sub-filter for Observed vs Allowed: both fetch blocked=false from the server,
+  // but we distinguish by rule_id presence. This means a keyset page may show fewer rows than
+  // the requested limit when the filter is Observed or Allowed.
+  const visibleEntries = (() => {
+    if (verdictFilter === 'observed') return displayEntries.filter((e) => e.rule_id != null);
+    if (verdictFilter === 'allowed') return displayEntries.filter((e) => e.rule_id == null);
+    return displayEntries;
+  })();
+
   const columns: Column<AuditSummary>[] = [
     {
       key: 'verdict',
@@ -440,7 +449,7 @@ export function AuditPage() {
           <div className="grow" />
 
           <span className="subtle" style={{ fontSize: 12.5 }}>
-            {displayEntries.length} {displayEntries.length === 1 ? 'result' : 'results'}
+            {visibleEntries.length} {visibleEntries.length === 1 ? 'result' : 'results'}
           </span>
         </div>
       </div>
@@ -453,12 +462,12 @@ export function AuditPage() {
       >
         <div className="panel">
           {/* Table */}
-          {displayEntries.length === 0 ? (
+          {visibleEntries.length === 0 ? (
             <div className="state-empty">No matching attempts.</div>
           ) : (
             <DataTable
               columns={columns}
-              rows={displayEntries}
+              rows={visibleEntries}
               onRowClick={(r) => setSelectedId(r.id)}
               rowTestId="agr-audit-row"
             />
