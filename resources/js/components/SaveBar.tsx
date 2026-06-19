@@ -7,6 +7,8 @@ interface SaveBarProps {
   onSave: () => void;
   onDiscard: () => void;
   message?: string;
+  /** When true, the Save button is disabled even if dirty (e.g. invalid patterns). */
+  saveDisabled?: boolean;
 }
 
 /**
@@ -16,7 +18,7 @@ interface SaveBarProps {
  * Exposes data-testid="agr-save-bar" for test targeting.
  * Error message exposed via data-testid="agr-save-error".
  */
-export function SaveBar({ dirty, saving, error, onSave, onDiscard, message }: SaveBarProps) {
+export function SaveBar({ dirty, saving, error, onSave, onDiscard, message, saveDisabled }: SaveBarProps) {
   if (!dirty) return null;
 
   return (
@@ -41,7 +43,7 @@ export function SaveBar({ dirty, saving, error, onSave, onDiscard, message }: Sa
       <button
         className="btn btn-sm btn-primary"
         onClick={onSave}
-        disabled={saving}
+        disabled={saving || saveDisabled}
         type="button"
       >
         <Check size={14} /> Save changes
