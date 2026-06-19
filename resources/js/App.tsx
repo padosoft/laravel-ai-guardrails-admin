@@ -8,6 +8,7 @@ import { Shell } from './shell/Shell';
 import { DashboardPage } from './pages/DashboardPage';
 import { AuditPage } from './pages/AuditPage';
 import { FirewallPage } from './pages/FirewallPage';
+import { OutputPage } from './pages/OutputPage';
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -64,7 +65,7 @@ export function AiGuardrailsAdminApp({ config, embedded = false }: AiGuardrailsA
           <Route index element={<DashboardPage />} />
           <Route path="/audit" element={<AuditPage />} />
           <Route path="/firewall" element={<FirewallPage />} />
-          <Route path="/output" element={<Placeholder title="Output Handler" />} />
+          <Route path="/output" element={<OutputPage />} />
           <Route path="/approvals" element={<Placeholder title="Approvals" />} />
           <Route path="/settings" element={<Placeholder title="Settings" />} />
           <Route path="/settings/audit" element={<Placeholder title="Change History" />} />

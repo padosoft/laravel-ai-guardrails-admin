@@ -4,9 +4,10 @@ interface ToggleProps {
   disabled?: boolean;
   name: string;
   hint?: string;
+  testId?: string;
 }
 
-export function Toggle({ on, onChange, disabled, name, hint }: ToggleProps) {
+export function Toggle({ on, onChange, disabled, name, hint, testId }: ToggleProps) {
   return (
     <div className="flex items-center justify-between gap-16 wrap">
       <div className="toggle-label">
@@ -20,6 +21,7 @@ export function Toggle({ on, onChange, disabled, name, hint }: ToggleProps) {
         aria-label={name}
         className={'toggle' + (on ? ' on' : '')}
         disabled={disabled}
+        data-testid={testId}
         onClick={() => !disabled && onChange && onChange(!on)}
       />
     </div>
