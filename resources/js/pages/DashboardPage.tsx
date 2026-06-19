@@ -42,19 +42,28 @@ function sparklineColor(control: Control): string {
 
 type TimeRange = '24h' | '7d' | '30d';
 
-function rangeToQueryParams(range: TimeRange): TrendRange {
-  const to = new Date();
-  const from = new Date(to);
-  if (range === '24h') {
-    from.setDate(from.getDate() - 1);
-  } else if (range === '7d') {
-    from.setDate(from.getDate() - 7);
-  } else {
-    from.setDate(from.getDate() - 30);
-  }
+/** Format a UTC timestamp (ms) as a YYYY-MM-DD string in UTC. */
+function utcDateString(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+/**
+ * Compute UTC-stable from/to boundaries for the given range.
+ *
+ * We work entirely in UTC milliseconds so that host-timezone midnight
+ * boundaries never bleed the window by ±1 day.
+ *
+ * @param range  - The selected time range ('24h' | '7d' | '30d').
+ * @param nowMs  - Epoch ms for "now" (defaults to Date.now(); injectable for
+ *                 tests so we can mock the clock without global patching).
+ */
+export function rangeToQueryParams(range: TimeRange, nowMs: number = Date.now()): TrendRange {
+  const days = range === '24h' ? 1 : range === '7d' ? 7 : 30;
+  const toMs = nowMs;
+  const fromMs = toMs - days * 86_400_000;
   return {
-    from: from.toISOString().slice(0, 10),
-    to: to.toISOString().slice(0, 10),
+    from: utcDateString(fromMs),
+    to: utcDateString(toMs),
   };
 }
 

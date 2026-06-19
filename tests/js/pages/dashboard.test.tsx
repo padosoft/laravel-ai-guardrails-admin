@@ -9,7 +9,7 @@ import { renderWithProviders } from '../support/render';
 import { server } from '../support/server';
 import { overviewFixture } from '../support/fixtures';
 import type { AuditTrendData } from '../../../resources/js/lib/api/types';
-import { DashboardPage } from '../../../resources/js/pages/DashboardPage';
+import { DashboardPage, rangeToQueryParams } from '../../../resources/js/pages/DashboardPage';
 
 // ------------------------------------------------------------------ fixtures --
 
@@ -270,5 +270,27 @@ describe('DashboardPage', () => {
     await waitFor(() =>
       expect(screen.getByTestId('agr-dashboard')).toHaveAttribute('data-state', 'error'),
     );
+  });
+
+  // ------------------------------------------------------------------
+  // C3 — UTC-safe time range: 7d window is exactly 7×86400 s wide
+  // ------------------------------------------------------------------
+  it('rangeToQueryParams 7d produces from exactly 7 UTC days before to (clock-injected)', () => {
+    // Fixed "now": 2026-06-19T15:30:00Z  (mid-afternoon UTC, well inside a UTC day)
+    // Local timezone drift cannot affect this because we compute in UTC ms.
+    const nowMs = Date.UTC(2026, 5, 19, 15, 30, 0); // months are 0-indexed
+
+    const result = rangeToQueryParams('7d', nowMs);
+
+    // "to" must be 2026-06-19 (UTC date of nowMs)
+    expect(result.to).toBe('2026-06-19');
+
+    // "from" must be exactly 7 days earlier in UTC: 2026-06-12
+    expect(result.from).toBe('2026-06-12');
+
+    // Sanity: the difference between parsed dates is exactly 7 days (604800000 ms)
+    const fromMs = new Date(result.from + 'T00:00:00Z').getTime();
+    const toMs   = new Date(result.to   + 'T00:00:00Z').getTime();
+    expect(toMs - fromMs).toBe(7 * 86_400_000);
   });
 });

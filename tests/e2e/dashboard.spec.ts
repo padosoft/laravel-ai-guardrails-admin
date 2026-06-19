@@ -96,23 +96,20 @@ test('switching time range causes trend endpoint to re-fetch', async ({ page }) 
   await page.goto('/admin/ai-guardrails');
   await expect(page.getByTestId('agr-dashboard')).toHaveAttribute('data-state', 'ready');
 
-  const initialCount = trendRequests.length;
+  // Switch range to 24h and wait for the trend endpoint to be refetched.
+  // waitForResponse is set up BEFORE the action so the response is not missed.
+  const refetchPromise = page.waitForResponse(
+    (r) => /\/audit\/trend/.test(r.url()),
+    { timeout: 5000 },
+  );
 
-  // Switch range to 24h
   await page.getByLabel('Time range').selectOption('24h');
 
-  // Wait for a new trend request with a different date range
-  await page.waitForFunction(
-    (initial) => window._trendRequestCount > initial,
-    initialCount,
-    { timeout: 5000 },
-  ).catch(async () => {
-    // If window function not available, just check requests array was extended
-    await page.waitForTimeout(500);
-  });
+  // The promise resolves once the refetch response is received.
+  await refetchPromise;
 
-  // Verify the trend endpoint was called more than once
-  expect(trendRequests.length).toBeGreaterThan(initialCount);
+  // Verify the trend endpoint was called more than once (initial load + refetch).
+  expect(trendRequests.length).toBeGreaterThan(1);
 });
 
 // ── Test 4: Demo-state Empty toggles data-state ──────────────────────────────

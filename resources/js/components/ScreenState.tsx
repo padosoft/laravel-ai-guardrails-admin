@@ -39,7 +39,7 @@ export function ScreenState({
   children: ReactNode;
 }) {
   return (
-    <section data-testid={testId} data-state={state} aria-busy={state === 'loading'}>
+    <section data-testid={testId} data-state={state} aria-busy={state === 'loading'} aria-live="polite">
       {state === 'loading' ? <div className="state-skeleton">Loading…</div> : null}
       {state === 'error' ? (
         <div className="state-error" data-testid={`${testId}-error`}>

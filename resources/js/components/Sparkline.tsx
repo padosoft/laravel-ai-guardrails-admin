@@ -1,3 +1,5 @@
+import { useId } from 'react';
+
 /**
  * Sparkline — inline SVG trend line for control cards.
  * Pixel-faithful recreation of docs/prototype/app/charts.jsx Sparkline (~L13).
@@ -37,8 +39,10 @@ export function Sparkline({
     line +
     ` L${(w - pad).toFixed(1)} ${h - pad} L${pad} ${h - pad} Z`;
 
-  // Unique gradient id per instance
-  const gid = 'sg-' + data.join('-').replace(/\./g, '').slice(0, 20);
+  // Unique gradient id per instance — React useId() guarantees no collisions
+  // even when multiple Sparklines are rendered simultaneously (e.g. 4 control cards).
+  const uid = useId();
+  const gid = `sg${uid}`;
 
   return (
     <svg
