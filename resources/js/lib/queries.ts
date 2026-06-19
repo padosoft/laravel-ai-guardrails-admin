@@ -3,7 +3,7 @@ import { createContext, createElement, type PropsWithChildren, useContext, useMe
 import { type AiGuardrailsAdminRuntimeConfig } from '../config';
 import { createApiClient } from './api/client';
 import { aiGuardrailsEndpoints, type AiGuardrailsEndpoints, endpoints } from './api/endpoints';
-import { type AuditFilters, type FirewallFilters, type GuardrailSettings, type TrendRange } from './api/types';
+import { type AuditFilters, type FirewallFilters, type TrendRange } from './api/types';
 
 export const queryKeys = {
   overview: () => ['agr', 'overview'] as const,
@@ -93,7 +93,9 @@ export function useReject() {
 
 export function useUpdateSettings() {
   const api = useApiEndpoints();
-  return useMutation({ mutationFn: (settings: GuardrailSettings) => api.updateSettings(settings) });
+  return useMutation({
+    mutationFn: (payload: { settings: Record<string, unknown> }) => api.updateSettings(payload),
+  });
 }
 
 export function useTryScreen() {

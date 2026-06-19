@@ -354,9 +354,9 @@ describe('FirewallPage', () => {
   });
 
   // ------------------------------------------------------------------
-  // 422 on Save surfaces field error
+  // 422 on Save surfaces field error AND SaveBar is still visible
   // ------------------------------------------------------------------
-  it('422 on Save surfaces an error message', async () => {
+  it('422 on Save surfaces an error message and SaveBar remains visible', async () => {
     server.use(
       http.get('*/firewall', () =>
         HttpResponse.json(envelope('firewall.list', firewallFixture)),
@@ -383,8 +383,61 @@ describe('FirewallPage', () => {
     await user.click(screen.getByRole('button', { name: /save changes/i }));
 
     await waitFor(() => {
+      // Error is surfaced
       expect(screen.getByTestId('agr-save-error')).toBeDefined();
     });
+    // SaveBar must still be present after a failed save — edits were NOT nulled (M-3)
+    expect(screen.getByTestId('agr-save-bar')).toBeDefined();
+  });
+
+  // ------------------------------------------------------------------
+  // M-4a: Editing back to original value clears dirty (toggle round-trip)
+  // ------------------------------------------------------------------
+  it('toggling enabled off then back on clears dirty (edit-back-to-original)', async () => {
+    withDefaultMocks();
+    renderFirewall();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-firewall')).toHaveAttribute('data-state', 'ready'),
+    );
+
+    const user = userEvent.setup();
+    const toggle = screen.getByRole('switch', { name: /firewall enabled/i });
+
+    // Toggle off → dirty
+    await user.click(toggle);
+    expect(screen.getByTestId('agr-save-bar')).toBeDefined();
+
+    // Toggle back on → matches server value → not dirty
+    await user.click(toggle);
+    expect(screen.queryByTestId('agr-save-bar')).toBeNull();
+  });
+
+  // ------------------------------------------------------------------
+  // M-4b: owner_keys round-trip (remove then re-add) clears dirty (I-2)
+  // ------------------------------------------------------------------
+  it('removing then re-adding an owner_key chip (same set, diff order) clears dirty', async () => {
+    withDefaultMocks();
+    renderFirewall();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-firewall')).toHaveAttribute('data-state', 'ready'),
+    );
+
+    const user = userEvent.setup();
+
+    // Remove "owner_id" chip → dirty
+    await user.click(screen.getByRole('button', { name: /remove owner_id/i }));
+    expect(screen.getByTestId('agr-save-bar')).toBeDefined();
+
+    // Re-add "owner_id" → back to original set → not dirty (order-insensitive I-2)
+    const addBtn = screen.getByRole('button', { name: /add owner key/i });
+    await user.click(addBtn);
+    const input = screen.getByTestId('agr-chip-input');
+    await user.type(input, 'owner_id');
+    await user.keyboard('{Enter}');
+
+    expect(screen.queryByTestId('agr-save-bar')).toBeNull();
   });
 
   // ------------------------------------------------------------------

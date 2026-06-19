@@ -74,8 +74,8 @@ function extractToolAuthorization(settings: Record<string, unknown>): ToolAuthor
 function KV({ items }: { items: [string, React.ReactNode][] }) {
   return (
     <dl className="kv">
-      {items.map(([k, v], i) => (
-        <div key={i}>
+      {items.map(([k, v]) => (
+        <div key={k}>
           <dt>{k}</dt>
           <dd>{v}</dd>
         </div>
@@ -101,8 +101,8 @@ function RejectionDrawer({ entry, onClose }: { entry: FirewallRejection; onClose
     >
       <div className="section-label" style={{ margin: '0 0 8px' }}>Violations</div>
       <div className="code-block">
-        {Object.entries(entry.violations).map(([k, v], i) => (
-          <div key={i}>
+        {Object.entries(entry.violations).map(([k, v]) => (
+          <div key={k}>
             <span style={{ color: 'var(--color-block)' }}>{k}</span>: {v}
           </div>
         ))}
@@ -130,11 +130,14 @@ export function FirewallPage() {
     ? extractFirewallPosture(settingsData.settings)
     : null;
 
-  // Seed local state from server on first load (and on refetch/reset)
+  // Seed local state from server on initial load only.
+  // After the first seed, local state is authoritative until the user Discards or Save
+  // completes — we never clobber in-flight edits from a background refetch.
   useEffect(() => {
-    if (serverPosture && !localPosture) {
+    if (serverPosture && localPosture === null) {
       setLocalPosture({ ...serverPosture });
     }
+    // localPosture intentionally excluded: we only want to react to the server data arriving.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsData]);
 
@@ -144,7 +147,12 @@ export function FirewallPage() {
     if (local.enabled !== server.enabled) return true;
     if (local.reject_unknown_arguments !== server.reject_unknown_arguments) return true;
     if (local.owner_keys.length !== server.owner_keys.length) return true;
-    if (local.owner_keys.some((k, i) => k !== server.owner_keys[i])) return true;
+    // Order-insensitive comparison (multiset equality): remove-then-re-add the same set
+    // of keys in a different order must not leave dirty=true.
+    // (We still SEND the array in the user's chosen order on Save.)
+    const localSorted = [...local.owner_keys].sort();
+    const serverSorted = [...server.owner_keys].sort();
+    if (localSorted.some((k, i) => k !== serverSorted[i])) return true;
     return false;
   }
 
@@ -162,9 +170,11 @@ export function FirewallPage() {
     if (local.reject_unknown_arguments !== server.reject_unknown_arguments) {
       patch['tool_firewall.reject_unknown_arguments'] = local.reject_unknown_arguments;
     }
+    const localSorted = [...local.owner_keys].sort();
+    const serverSorted = [...server.owner_keys].sort();
     const keysChanged =
       local.owner_keys.length !== server.owner_keys.length ||
-      local.owner_keys.some((k, i) => k !== server.owner_keys[i]);
+      localSorted.some((k, i) => k !== serverSorted[i]);
     if (keysChanged) {
       patch['tool_firewall.owner_keys'] = local.owner_keys;
     }
@@ -172,18 +182,23 @@ export function FirewallPage() {
   }
 
   // ── Save ─────────────────────────────────────────────────────────────────
+  // Race-free seed-on-save: we seed local state directly from the server-confirmed
+  // response (the PUT /settings response returns the full updated {settings:{...}}).
+  // We do NOT null localPosture and rely on a re-seed effect, because an edit made
+  // between PUT-resolve and refetch would be clobbered.
   async function handleSave() {
     if (!localPosture || !serverPosture) return;
     setSaving(true);
     setSaveError(null);
     try {
       const patch = changedKeys(localPosture, serverPosture);
-      await updateSettings({ settings: patch });
-      // Refetch settings and reset dirty by re-seeding local state
-      await queryClient.invalidateQueries({ queryKey: queryKeys.settings() });
-      // Re-seed with new server values — the useEffect will NOT re-seed because
-      // localPosture is already set. Reset it to null so the effect re-seeds.
-      setLocalPosture(null);
+      const confirmed = await updateSettings({ settings: patch });
+      // Seed local edit state from the SERVER-CONFIRMED response so no race is possible.
+      // Background-invalidate the cache so other data consumers stay fresh.
+      if (confirmed?.settings) {
+        setLocalPosture(extractFirewallPosture(confirmed.settings));
+      }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.settings() });
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } };
       const msg =
@@ -385,7 +400,7 @@ export function FirewallPage() {
 
           {/* Rejections table */}
           <div className="section-label" style={{ margin: '22px 0 11px' }}>
-            Rejections · last 24h: {entries.length}
+            Rejections · {entries.length} shown
           </div>
           <div className="panel">
             {entries.length === 0 ? (

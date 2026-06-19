@@ -9,7 +9,6 @@ import {
   AuditTrendData,
   FirewallFilters,
   FirewallListData,
-  GuardrailSettings,
   Overview,
   OutputStatsData,
   SanitizeResult,
@@ -69,8 +68,8 @@ export function aiGuardrailsEndpoints(client: AxiosInstance = createApiClient())
       return client.get<SettingsData>('/settings') as unknown as Promise<SettingsData>;
     },
 
-    async updateSettings(settings: GuardrailSettings): Promise<SettingsData> {
-      return client.put<SettingsData>('/settings', settings) as unknown as Promise<SettingsData>;
+    async updateSettings(payload: { settings: Record<string, unknown> }): Promise<SettingsData> {
+      return client.put<SettingsData>('/settings', payload) as unknown as Promise<SettingsData>;
     },
 
     async settingsChanges(limit = 50): Promise<SettingsChangesData> {
