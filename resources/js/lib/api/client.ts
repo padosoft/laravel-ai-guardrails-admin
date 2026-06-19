@@ -12,6 +12,8 @@ export function createApiClient(config?: Partial<AiGuardrailsAdminRuntimeConfig>
   const client = axios.create({
     baseURL: resolveApiBase(config),
     withCredentials: true,
+    xsrfCookieName: 'XSRF-TOKEN',
+    xsrfHeaderName: 'X-XSRF-TOKEN',
     headers: {
       Accept: 'application/json',
       'X-Requested-With': 'XMLHttpRequest',
@@ -19,15 +21,17 @@ export function createApiClient(config?: Partial<AiGuardrailsAdminRuntimeConfig>
   });
 
   client.interceptors.response.use(
-    // Unwrap the core API envelope { schema_version, schema, data } → data.
+    // Unwrap the core API envelope { schema_version, schema, data } → bare payload.
+    // Contract: the interceptor returns response.data.data (the inner `data` field)
+    // so callers receive the bare payload directly, not an AxiosResponse wrapper.
     // Guard: only unwrap when the envelope shape is present, so non-enveloped
     // responses (or already-unwrapped test doubles) pass through unchanged.
     (response) => {
       const body = response.data;
       if (body && typeof body === 'object' && 'data' in body && 'schema_version' in body) {
-        response.data = (body as { data: unknown }).data;
+        return (body as { data: unknown }).data;
       }
-      return response;
+      return response.data;
     },
     (error: unknown) => Promise.reject(normalizeApiError(error)),
   );

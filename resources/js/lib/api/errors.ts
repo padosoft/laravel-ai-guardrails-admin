@@ -33,6 +33,13 @@ export class FeatureDisabledError extends ApiError {
   }
 }
 
+export class NotFoundError extends ApiError {
+  constructor(status: number, message: string, payload?: ApiErrorPayload) {
+    super(message, status, 'not_found', {}, payload);
+    this.name = 'NotFoundError';
+  }
+}
+
 export class AuthExpiredError extends ApiError {
   constructor(status: number, message: string, payload?: ApiErrorPayload) {
     super(message, status, 'auth_expired', {}, payload);
@@ -69,8 +76,12 @@ export function normalizeApiError(error: unknown): ApiError {
     return new AuthExpiredError(status, message, payload);
   }
 
-  if (status === 404 || code === 'feature_disabled') {
+  if (code === 'feature_disabled') {
     return new FeatureDisabledError(status, message, payload);
+  }
+
+  if (status === 404) {
+    return new NotFoundError(status, message, payload);
   }
 
   return new ApiError(message, status, code, payload.errors ?? {}, payload);

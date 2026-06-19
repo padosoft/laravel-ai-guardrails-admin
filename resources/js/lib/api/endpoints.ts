@@ -30,73 +30,59 @@ function params(filters: Record<string, unknown>): Record<string, string | numbe
 export function aiGuardrailsEndpoints(client: AxiosInstance = createApiClient()) {
   return {
     async overview(): Promise<Overview> {
-      const response = await client.get<Overview>('/overview');
-      return response.data;
+      return client.get<Overview>('/overview') as unknown as Promise<Overview>;
     },
 
     async auditList(filters: AuditFilters = {}): Promise<AuditListData> {
-      const response = await client.get<AuditListData>('/audit', { params: params(filters) });
-      return response.data;
+      return client.get<AuditListData>('/audit', { params: params(filters) }) as unknown as Promise<AuditListData>;
     },
 
     async auditDetail(id: number): Promise<AuditDetailData> {
-      const response = await client.get<AuditDetailData>(`/audit/${encodeURIComponent(String(id))}`);
-      return response.data;
+      return client.get<AuditDetailData>(`/audit/${encodeURIComponent(String(id))}`) as unknown as Promise<AuditDetailData>;
     },
 
     async auditTrend(range: TrendRange = {}): Promise<AuditTrendData> {
-      const response = await client.get<AuditTrendData>('/audit/trend', { params: params(range) });
-      return response.data;
+      return client.get<AuditTrendData>('/audit/trend', { params: params(range) }) as unknown as Promise<AuditTrendData>;
     },
 
     async firewall(filters: FirewallFilters = {}): Promise<FirewallListData> {
-      const response = await client.get<FirewallListData>('/firewall', { params: params(filters) });
-      return response.data;
+      return client.get<FirewallListData>('/firewall', { params: params(filters) }) as unknown as Promise<FirewallListData>;
     },
 
     async outputStats(range: TrendRange = {}): Promise<OutputStatsData> {
-      const response = await client.get<OutputStatsData>('/output/stats', { params: params(range) });
-      return response.data;
+      return client.get<OutputStatsData>('/output/stats', { params: params(range) }) as unknown as Promise<OutputStatsData>;
     },
 
     async approvals(): Promise<ApprovalsData> {
-      const response = await client.get<ApprovalsData>('/approvals');
-      return response.data;
+      return client.get<ApprovalsData>('/approvals') as unknown as Promise<ApprovalsData>;
     },
 
     async approve(token: string): Promise<ApprovalDecision> {
-      const response = await client.post<ApprovalDecision>(`/approvals/${encodeURIComponent(token)}/approve`);
-      return response.data;
+      return client.post<ApprovalDecision>(`/approvals/${encodeURIComponent(token)}/approve`) as unknown as Promise<ApprovalDecision>;
     },
 
     async reject(token: string): Promise<ApprovalDecision> {
-      const response = await client.post<ApprovalDecision>(`/approvals/${encodeURIComponent(token)}/reject`);
-      return response.data;
+      return client.post<ApprovalDecision>(`/approvals/${encodeURIComponent(token)}/reject`) as unknown as Promise<ApprovalDecision>;
     },
 
     async settings(): Promise<SettingsData> {
-      const response = await client.get<SettingsData>('/settings');
-      return response.data;
+      return client.get<SettingsData>('/settings') as unknown as Promise<SettingsData>;
     },
 
     async updateSettings(settings: GuardrailSettings): Promise<SettingsData> {
-      const response = await client.put<SettingsData>('/settings', settings);
-      return response.data;
+      return client.put<SettingsData>('/settings', settings) as unknown as Promise<SettingsData>;
     },
 
     async settingsChanges(limit = 50): Promise<SettingsChangesData> {
-      const response = await client.get<SettingsChangesData>('/settings/changes', { params: { limit } });
-      return response.data;
+      return client.get<SettingsChangesData>('/settings/changes', { params: { limit } }) as unknown as Promise<SettingsChangesData>;
     },
 
     async tryScreen(prompt: string): Promise<ScreenResult> {
-      const response = await client.post<ScreenResult>('/try/screen', { prompt });
-      return response.data;
+      return client.post<ScreenResult>('/try/screen', { prompt }) as unknown as Promise<ScreenResult>;
     },
 
     async trySanitize(text: string): Promise<SanitizeResult> {
-      const response = await client.post<SanitizeResult>('/try/sanitize', { text });
-      return response.data;
+      return client.post<SanitizeResult>('/try/sanitize', { text }) as unknown as Promise<SanitizeResult>;
     },
   };
 }

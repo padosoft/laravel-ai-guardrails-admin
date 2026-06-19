@@ -2,7 +2,6 @@ import {
   Filter,
   FlaskConical,
   Gavel,
-  History,
   LayoutDashboard,
   List,
   Moon,
@@ -30,15 +29,17 @@ interface NavGroup {
 
 export const NAV_GROUPS: NavGroup[] = [
   {
-    name: 'Overview',
-    items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard, testId: 'agr-nav-dashboard' }],
-  },
-  {
     name: 'Controls',
     items: [
+      { to: '/', label: 'Overview', icon: LayoutDashboard, testId: 'agr-nav-dashboard' },
       { to: '/audit', label: 'Injection Audit', icon: List, testId: 'agr-nav-audit' },
       { to: '/firewall', label: 'Tool Firewall', icon: Shield, testId: 'agr-nav-firewall' },
       { to: '/output', label: 'Output Handler', icon: Filter, testId: 'agr-nav-output' },
+    ],
+  },
+  {
+    name: 'Ops',
+    items: [
       { to: '/approvals', label: 'Approvals', icon: Gavel, testId: 'agr-nav-approvals' },
     ],
   },
@@ -46,8 +47,7 @@ export const NAV_GROUPS: NavGroup[] = [
     name: 'Configure',
     items: [
       { to: '/settings', label: 'Settings', icon: SettingsIcon, testId: 'agr-nav-settings' },
-      { to: '/settings/audit', label: 'Change History', icon: History, testId: 'agr-nav-changes' },
-      { to: '/try', label: 'Try', icon: FlaskConical, testId: 'agr-nav-try' },
+      { to: '/try', label: 'Try · Sandbox', icon: FlaskConical, testId: 'agr-nav-try' },
     ],
   },
 ];
@@ -88,7 +88,11 @@ export function Shell() {
 
   const toggleTheme = useCallback(() => setTheme((t) => (t === 'dark' ? 'light' : 'dark')), []);
 
-  const current = ALL_ROUTES.find((r) => r.to === location.pathname) ?? ALL_ROUTES[0];
+  // Longest-prefix match so sub-paths like /settings/audit resolve to their parent nav label.
+  // Fall back to the index route if no prefix matches.
+  const current =
+    ALL_ROUTES.filter((r) => r.to === '/' ? location.pathname === '/' : location.pathname.startsWith(r.to))
+      .sort((a, b) => b.to.length - a.to.length)[0] ?? ALL_ROUTES[0];
 
   return (
     <div className="app" data-testid="agr-shell">
