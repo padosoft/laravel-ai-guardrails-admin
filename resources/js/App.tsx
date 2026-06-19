@@ -12,6 +12,7 @@ import { OutputPage } from './pages/OutputPage';
 import { ApprovalsPage } from './pages/ApprovalsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ChangeHistoryPage } from './pages/ChangeHistoryPage';
+import { TryPage } from './pages/TryPage';
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -72,7 +73,7 @@ export function AiGuardrailsAdminApp({ config, embedded = false }: AiGuardrailsA
           <Route path="/approvals" element={<ApprovalsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/settings/audit" element={<ChangeHistoryPage />} />
-          <Route path="/try" element={<Placeholder title="Try" />} />
+          <Route path="/try" element={<TryPage />} />
         </Route>
       </Routes>
     </Providers>
