@@ -136,8 +136,11 @@ test('type text → Sanitize → before and after blocks are visible', async ({ 
   await expect(afterBlock).toBeVisible();
   await expect(afterBlock).toContainText('[redacted]');
 
-  // No <script> injected into DOM
-  await expect(page.locator('script:visible')).toHaveCount(0);
+  // No <script> element was injected into the after block (real DOM check — scripts are
+  // never CSS-visible, so `script:visible` is always 0 and meaningless as an assertion).
+  expect(await page.locator('[data-testid="agr-sanitize-result"] script').count()).toBe(0);
+  // The literal escaped text IS present as text content in the after block
+  await expect(page.getByTestId('agr-sanitize-after')).toContainText('&lt;script&gt;steal()&lt;/script&gt;');
 
   // Changed indicator shown
   await expect(page.getByTestId('agr-sanitize-changed')).toBeVisible();

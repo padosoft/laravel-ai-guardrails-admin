@@ -290,6 +290,61 @@ describe('TryPage — Screen a Prompt', () => {
     // (they're separate sections — rule_id belongs in verdict only)
     expect(normPreview).not.toHaveTextContent('rule_x');
   });
+
+  // ------------------------------------------------------------------
+  // Normalization preview snapshots the SUBMITTED prompt (A), not the live textarea.
+  // Scenario: submit A (in-flight) → edit textarea to B → result arrives → preview
+  // must still reflect A (the value that produced the verdict), not B.
+  // ------------------------------------------------------------------
+  it('normalization preview reflects submitted prompt A even after textarea is edited to B mid-flight', async () => {
+    const promptA = 'Ａttack'; // fullwidth A → NFKC transform → triggers nfkc chip
+    const promptB = 'lowercase only'; // no transforms → would produce NO chips if used instead
+
+    let resolveRequest!: () => void;
+    const screenResult: ScreenResult = {
+      blocked: false,
+      rule_id: null,
+      refusal_message: null,
+      ruleset_version: 'v1',
+    };
+
+    server.use(
+      http.post('*/try/screen', () =>
+        new Promise<Response>((resolve) => {
+          resolveRequest = () =>
+            resolve(HttpResponse.json(envelope('try.screen', screenResult)));
+        }),
+      ),
+    );
+
+    renderTry();
+    const user = userEvent.setup();
+
+    // 1. Submit prompt A — request is now in-flight (held by resolveRequest)
+    const promptInput = screen.getByTestId('agr-try-prompt');
+    await user.clear(promptInput);
+    await user.type(promptInput, promptA);
+    await user.click(screen.getByTestId('agr-try-screen'));
+
+    // 2. While in-flight, edit the textarea to B (without re-submitting)
+    //    This changes the live `prompt` state but must NOT affect the snapshot.
+    //    Note: onChange clears result, but the request is still in-flight and
+    //    will set result when it resolves.
+    await user.clear(promptInput);
+    await user.type(promptInput, promptB);
+
+    // 3. Now resolve the request — the verdict arrives
+    resolveRequest();
+    await screen.findByTestId('agr-screen-result');
+
+    // 4. The normalization preview must reflect A (which was submitted),
+    //    not B (which is now in the textarea).
+    //    A has fullwidth chars → nfkc chip present.
+    //    B has no transforms → would show NO chips if B were used.
+    const normPreview = screen.getByTestId('agr-norm-preview');
+    expect(normPreview).toBeVisible();
+    expect(normPreview).toHaveTextContent(/nfkc/i);
+  });
 });
 
 // ================================================================ SANITIZE TESTS ================================================================
@@ -499,9 +554,16 @@ describe('TryPage — Sanitize Output', () => {
 
     await screen.findByTestId('agr-sanitize-result');
 
-    // A neutral note about what was done — not a fabricated count
+    // The after-label row is visible
     const afterLabel = screen.getByTestId('agr-sanitize-after-label');
     expect(afterLabel).toBeVisible();
     expect(afterLabel).toHaveTextContent(/After/i);
+
+    // The neutral degradation description is present below the after block.
+    // It must mention both HTML/markdown neutralization and PII redaction so the
+    // test name ("shows degradation note") matches what it actually checks.
+    const sanitizeSection = screen.getByTestId('agr-sanitize-result');
+    expect(sanitizeSection).toHaveTextContent(/HTML\/markdown neutralized/i);
+    expect(sanitizeSection).toHaveTextContent(/PII redacted where configured/i);
   });
 });
