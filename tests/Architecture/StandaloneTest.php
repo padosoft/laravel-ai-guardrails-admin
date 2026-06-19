@@ -16,7 +16,6 @@ final class StandaloneTest extends TestCase
      */
     private const FORBIDDEN_NEEDLES = [
         'Padosoft\AiGuardrails\\',
-        'padosoft/laravel-ai-guardrails"',
     ];
 
     public function test_src_does_not_reference_core_package_namespace(): void

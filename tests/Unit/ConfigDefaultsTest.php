@@ -25,14 +25,8 @@ final class ConfigDefaultsTest extends TestCase
         $original = getenv('AI_GUARDRAILS_ADMIN_MIDDLEWARE');
         putenv('AI_GUARDRAILS_ADMIN_MIDDLEWARE=');
 
-        // The config logic: parse CSV, filter empty, fallback to ['web']
-        $middleware = array_values(array_filter(
-            array_map('trim', explode(',', (string) getenv('AI_GUARDRAILS_ADMIN_MIDDLEWARE'))),
-            static fn (string $name): bool => $name !== ''
-        ));
-        $resolved = $middleware !== [] ? $middleware : ['web'];
-
-        self::assertSame(['web'], $resolved);
+        $config = require __DIR__.'/../../config/ai-guardrails-admin.php';
+        self::assertSame(['web'], $config['middleware']);
 
         // Restore
         if ($original === false) {

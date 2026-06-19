@@ -6,7 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>AI Guardrails Admin</title>
     <script>
-        window.__AI_GUARDRAILS_ADMIN__ = {!! json_encode($runtimeConfig, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) !!};
+        window.__AI_GUARDRAILS_ADMIN__ = {!! json_encode($runtimeConfig, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!};
         try {
             var theme = localStorage.getItem('agr-theme') || window.__AI_GUARDRAILS_ADMIN__.theme_default || 'dark';
             document.documentElement.setAttribute('data-theme', theme);

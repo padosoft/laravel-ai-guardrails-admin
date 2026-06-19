@@ -1,0 +1,8 @@
+/vendor
+/node_modules
+/.phpunit.cache
+/.phpstan-cache
+/public/vendor
+composer.lock
+/dist
+.DS_Store
