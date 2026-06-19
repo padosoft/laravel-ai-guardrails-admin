@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+
+jobs:
+  php:
+    name: PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php: '8.3'
+            laravel: '11'
+            illuminate: '^11.0'
+            testbench: '^9.0'
+          - php: '8.4'
+            laravel: '11'
+            illuminate: '^11.0'
+            testbench: '^9.0'
+          - php: '8.3'
+            laravel: '12'
+            illuminate: '^12.0'
+            testbench: '^10.0'
+          - php: '8.4'
+            laravel: '12'
+            illuminate: '^12.0'
+            testbench: '^10.0'
+          - php: '8.3'
+            laravel: '13'
+            illuminate: '^13.0'
+            testbench: '^11.0'
+          - php: '8.4'
+            laravel: '13'
+            illuminate: '^13.0'
+            testbench: '^11.0'
+          - php: '8.5'
+            laravel: '13'
+            illuminate: '^13.0'
+            testbench: '^11.0'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: composer:v2
+
+      - name: Allow legacy framework compatibility cells
+        run: composer config audit.block-insecure false
+
+      - name: Pin Laravel cell
+        run: |
+          composer require --no-update \
+            illuminate/contracts:${{ matrix.illuminate }} \
+            illuminate/routing:${{ matrix.illuminate }} \
+            illuminate/support:${{ matrix.illuminate }} \
+            illuminate/view:${{ matrix.illuminate }}
+          composer require --dev --no-update \
+            orchestra/testbench:${{ matrix.testbench }}
+
+      - run: composer validate --strict --no-check-publish --no-interaction --no-ansi
+      - run: composer update --prefer-dist --no-interaction --no-progress
+      - run: vendor/bin/pint --test
+      - run: vendor/bin/phpstan analyse --memory-limit=512M --no-progress
+      - run: vendor/bin/phpunit
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run test
+
+  playwright:
+    name: Playwright
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
