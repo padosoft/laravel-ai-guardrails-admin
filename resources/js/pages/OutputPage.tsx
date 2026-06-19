@@ -1,6 +1,7 @@
 import { Code, Eye, Filter, AlertTriangle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Badge, modeBadgeLabel, modeBadgeVariant } from '../components/Badge';
+import { Banner } from '../components/Banner';
 import { BarBreakdown } from '../components/BarBreakdown';
 import { SaveBar } from '../components/SaveBar';
 import { ScreenState, useScreenState } from '../components/ScreenState';
@@ -65,13 +66,14 @@ function changedKeys(local: OutputPosture, server: OutputPosture): Record<string
   return patch;
 }
 
-// ── PII availability heuristic ────────────────────────────────────────────────
-// The API does not currently expose a dedicated "pii_available" flag.
-// We infer availability: if redact_pii is enabled AND the by_detector map
-// has at least one entry, the redactor is present and active.
-// This is documented as a heuristic — a future API field would replace it.
+// ── PII activity indicator ────────────────────────────────────────────────────
+// Indicates whether the pii-redactor appears active: redact_pii is enabled AND
+// by_detector has at least one entry (i.e. redactions have been recorded in the window).
+// We do NOT use this to disable the toggle — the real API exposes no `pii_available`
+// flag, so the prototype's `disabled={!pii_available}` would false-negative on an
+// installed-but-idle redactor. The toggle stays enabled regardless.
 
-function isPiiAvailable(
+function isPiiActive(
   redactPii: boolean,
   byDetector: Record<string, number>,
 ): boolean {
@@ -161,9 +163,9 @@ export function OutputPage() {
   const counts = statsData?.counts;
   const byDetector = counts?.pii?.by_detector ?? {};
   const detectorItems = Object.entries(byDetector).map(([label, value]) => ({ label, value }));
-  const piiAvailable = localPosture
-    ? isPiiAvailable(localPosture.redact_pii, byDetector)
-    : false;
+  const piiActive = localPosture ? isPiiActive(localPosture.redact_pii, byDetector) : false;
+  // Show idle note when redact_pii is on but no redactions have been recorded in the window.
+  const showPiiIdleNote = localPosture?.redact_pii === true && Object.keys(byDetector).length === 0;
 
   return (
     <div className="page" data-screen-label="Output Handler">
@@ -185,6 +187,17 @@ export function OutputPage() {
           </Badge>
         </div>
       </div>
+
+      {/* Monitor-mode shadow banner — output passes through unmodified in this mode */}
+      {mode === 'monitor' && (
+        <div style={{ marginBottom: 16 }}>
+          <Banner kind="info" icon="eye" testId="agr-monitor-banner">
+            <b>Shadow mode.</b> The handler computes what it <i>would</i> sanitize and
+            redact, and records the counts below — but passes output through unmodified.
+            Switch to Enforce on Settings to apply.
+          </Banner>
+        </div>
+      )}
 
       <ScreenState
         testId="agr-output"
@@ -229,12 +242,13 @@ export function OutputPage() {
           <div className="section-label" style={{ margin: '22px 0 11px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span>PII redactions by detector</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+              {/* status-dot uses prototype class names: engaged = active, degraded = idle/off */}
               <span
-                className={`status-dot ${piiAvailable ? 'dot-engaged' : 'dot-off'}`}
+                className={`status-dot ${piiActive ? 'engaged' : 'degraded'}`}
                 aria-hidden="true"
               />
               <span className="muted">
-                pii-redactor {piiAvailable ? 'available' : 'absent'}
+                pii-redactor {piiActive ? 'active' : 'no recent redactions'}
               </span>
             </span>
           </div>
@@ -314,7 +328,11 @@ export function OutputPage() {
 
                   <div style={{ borderTop: '1px solid var(--color-border)' }} />
 
-                  {/* Redact PII */}
+                  {/* Redact PII — toggle is always enabled.
+                      We diverge from the prototype's disabled={!pii_available} because the
+                      real /output/stats API exposes no pii_available flag. Disabling on the
+                      weak by_detector heuristic would false-negative an installed-but-idle
+                      redactor and wrongly block the user from toggling it. */}
                   <Toggle
                     name="Redact PII"
                     hint="Delegated to padosoft/laravel-pii-redactor when present."
@@ -324,6 +342,18 @@ export function OutputPage() {
                     }
                     testId="agr-toggle-redact-pii"
                   />
+
+                  {/* Idle note: redact_pii is ON but no redactions recorded — surface as info, not error */}
+                  {showPiiIdleNote && (
+                    <p
+                      className="muted"
+                      style={{ fontSize: 12, margin: 0 }}
+                      data-testid="agr-pii-idle-note"
+                    >
+                      No PII redactions recorded in this window — if you expect redactions,
+                      verify <span className="mono">padosoft/laravel-pii-redactor</span> is installed.
+                    </p>
+                  )}
                 </>
               )}
             </div>

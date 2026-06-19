@@ -80,6 +80,21 @@ const settingsMonitor: SettingsData = {
   },
 };
 
+const settingsOff: SettingsData = {
+  settings: {
+    output_handler: {
+      enabled: false,
+      sanitize_html: false,
+      neutralize_markdown: false,
+      redact_pii: false,
+      html_mode: 'escape',
+    },
+    modes: {
+      output_handler: 'off',
+    },
+  },
+};
+
 // ------------------------------------------------------------------ helpers --
 
 function renderOutput() {
@@ -139,9 +154,9 @@ describe('OutputPage', () => {
     );
 
     // Bars are rendered for each detector
-    expect(screen.getByTestId('agr-bar-email')).toBeDefined();
-    expect(screen.getByTestId('agr-bar-phone')).toBeDefined();
-    expect(screen.getByTestId('agr-bar-iban')).toBeDefined();
+    expect(screen.getByTestId('agr-bar-email')).toBeVisible();
+    expect(screen.getByTestId('agr-bar-phone')).toBeVisible();
+    expect(screen.getByTestId('agr-bar-iban')).toBeVisible();
 
     // Values are present
     expect(screen.getByTestId('agr-bar-email')).toHaveTextContent('3');
@@ -160,7 +175,7 @@ describe('OutputPage', () => {
       expect(screen.getByTestId('agr-output')).toHaveAttribute('data-state', 'ready'),
     );
 
-    expect(screen.getByTestId('agr-bar-empty')).toBeDefined();
+    expect(screen.getByTestId('agr-bar-empty')).toBeVisible();
     // No bars rendered
     expect(screen.queryAllByTestId(/^agr-bar-/)).toHaveLength(1); // only the empty state testid
   });
@@ -194,6 +209,77 @@ describe('OutputPage', () => {
   });
 
   // ------------------------------------------------------------------
+  // Status badge: OFF when modes.output_handler = 'off'
+  // ------------------------------------------------------------------
+  it('shows OFF badge when mode is off', async () => {
+    withDefaultMocks({ settings: settingsOff });
+    renderOutput();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-output')).toHaveAttribute('data-state', 'ready'),
+    );
+
+    expect(screen.getByTestId('agr-status-badge')).toHaveTextContent(/off/i);
+  });
+
+  // ------------------------------------------------------------------
+  // Monitor banner: appears only in monitor mode
+  // ------------------------------------------------------------------
+  it('shows monitor banner only when mode is monitor', async () => {
+    withDefaultMocks({ settings: settingsMonitor });
+    renderOutput();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-output')).toHaveAttribute('data-state', 'ready'),
+    );
+
+    expect(screen.getByTestId('agr-monitor-banner')).toBeVisible();
+  });
+
+  it('does not show monitor banner when mode is enforce', async () => {
+    withDefaultMocks();
+    renderOutput();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-output')).toHaveAttribute('data-state', 'ready'),
+    );
+
+    expect(screen.queryByTestId('agr-monitor-banner')).toBeNull();
+  });
+
+  // ------------------------------------------------------------------
+  // PII idle note: appears when redact_pii on + by_detector empty
+  // ------------------------------------------------------------------
+  it('shows pii-idle note when redact_pii is on but by_detector is empty', async () => {
+    const settingsRedactPiiOn: SettingsData = {
+      settings: {
+        output_handler: { enabled: true, sanitize_html: true, neutralize_markdown: true, redact_pii: true, html_mode: 'escape' },
+        modes: { output_handler: 'enforce' },
+      },
+    };
+    withDefaultMocks({ stats: outputStatsEmptyDetectors, settings: settingsRedactPiiOn });
+    renderOutput();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-output')).toHaveAttribute('data-state', 'ready'),
+    );
+
+    expect(screen.getByTestId('agr-pii-idle-note')).toBeVisible();
+  });
+
+  it('does not show pii-idle note when by_detector has data', async () => {
+    // outputStatsFixture has by_detector data, settingsFixture has redact_pii: true
+    withDefaultMocks();
+    renderOutput();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-output')).toHaveAttribute('data-state', 'ready'),
+    );
+
+    expect(screen.queryByTestId('agr-pii-idle-note')).toBeNull();
+  });
+
+  // ------------------------------------------------------------------
   // Toggling a config toggle shows SaveBar
   // ------------------------------------------------------------------
   it('toggling "Sanitize HTML" shows SaveBar', async () => {
@@ -210,7 +296,7 @@ describe('OutputPage', () => {
     const toggle = screen.getByRole('switch', { name: /sanitize html/i });
     await user.click(toggle);
 
-    expect(screen.getByTestId('agr-save-bar')).toBeDefined();
+    expect(screen.getByTestId('agr-save-bar')).toBeVisible();
   });
 
   // ------------------------------------------------------------------
@@ -228,7 +314,7 @@ describe('OutputPage', () => {
     const toggle = screen.getByRole('switch', { name: /neutralize markdown/i });
     await user.click(toggle);
 
-    expect(screen.getByTestId('agr-save-bar')).toBeDefined();
+    expect(screen.getByTestId('agr-save-bar')).toBeVisible();
   });
 
   // ------------------------------------------------------------------
@@ -246,7 +332,7 @@ describe('OutputPage', () => {
     const toggle = screen.getByRole('switch', { name: /redact pii/i });
     await user.click(toggle);
 
-    expect(screen.getByTestId('agr-save-bar')).toBeDefined();
+    expect(screen.getByTestId('agr-save-bar')).toBeVisible();
   });
 
   // ------------------------------------------------------------------
@@ -266,7 +352,7 @@ describe('OutputPage', () => {
     const allowlistBtn = screen.getByRole('button', { name: /allowlist/i });
     await user.click(allowlistBtn);
 
-    expect(screen.getByTestId('agr-save-bar')).toBeDefined();
+    expect(screen.getByTestId('agr-save-bar')).toBeVisible();
   });
 
   // ------------------------------------------------------------------
@@ -374,7 +460,7 @@ describe('OutputPage', () => {
     // Toggle to make dirty
     await user.click(toggle);
 
-    expect(screen.getByTestId('agr-save-bar')).toBeDefined();
+    expect(screen.getByTestId('agr-save-bar')).toBeVisible();
 
     // Discard
     await user.click(screen.getByRole('button', { name: /discard/i }));
@@ -402,7 +488,7 @@ describe('OutputPage', () => {
 
     // Toggle off → dirty
     await user.click(toggle);
-    expect(screen.getByTestId('agr-save-bar')).toBeDefined();
+    expect(screen.getByTestId('agr-save-bar')).toBeVisible();
 
     // Toggle back on → matches server → not dirty
     await user.click(toggle);
@@ -424,7 +510,7 @@ describe('OutputPage', () => {
 
     // Switch to allowlist → dirty
     await user.click(screen.getByRole('button', { name: /allowlist/i }));
-    expect(screen.getByTestId('agr-save-bar')).toBeDefined();
+    expect(screen.getByTestId('agr-save-bar')).toBeVisible();
 
     // Switch back to escape → not dirty
     await user.click(screen.getByRole('button', { name: /escape/i }));
@@ -461,10 +547,10 @@ describe('OutputPage', () => {
     await user.click(screen.getByRole('button', { name: /save changes/i }));
 
     await waitFor(() => {
-      expect(screen.getByTestId('agr-save-error')).toBeDefined();
+      expect(screen.getByTestId('agr-save-error')).toBeVisible();
     });
     // SaveBar still present after failed save
-    expect(screen.getByTestId('agr-save-bar')).toBeDefined();
+    expect(screen.getByTestId('agr-save-bar')).toBeVisible();
     // Toggle still shows the edited value (not reverted)
     expect(screen.getByRole('switch', { name: /sanitize html/i })).toHaveAttribute('aria-checked', 'false');
   });
@@ -536,7 +622,7 @@ describe('OutputPage', () => {
 
     const user = userEvent.setup();
     await user.click(screen.getByRole('switch', { name: /sanitize html/i }));
-    expect(screen.getByTestId('agr-save-bar')).toBeDefined();
+    expect(screen.getByTestId('agr-save-bar')).toBeVisible();
 
     await user.click(screen.getByRole('button', { name: /save changes/i }));
 

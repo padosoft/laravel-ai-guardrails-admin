@@ -293,3 +293,80 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
   .app { grid-template-columns: 1fr; }
   .sidebar { display: none; }
 }
+
+/* ── Page layout ─────────────────────────────────────────────────────────── */
+.page-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; }
+.ph-text { flex: 1; }
+.ph-actions { display: flex; align-items: center; gap: 10px; }
+.screen-title { font-size: 19px; font-weight: 650; letter-spacing: -0.015em; margin: 0 0 4px; display: flex; align-items: center; gap: 9px; }
+.screen-subtitle { font-size: 13px; color: var(--color-fg-muted); margin: 0; }
+.section-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: var(--color-fg-subtle); }
+
+/* ── Panel / card surfaces ───────────────────────────────────────────────── */
+.panel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-ui); box-shadow: var(--shadow-panel); }
+.panel-pad { padding: 18px 20px; }
+
+/* ── Layout utilities ────────────────────────────────────────────────────── */
+.grid { display: grid; }
+.cols-4 { grid-template-columns: repeat(4, 1fr); }
+.gap-14 { gap: 14px; }
+.gap-16 { gap: 16px; }
+.gap-12 { gap: 12px; }
+.gap-8 { gap: 8px; }
+.flex { display: flex; }
+.col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.wrap { flex-wrap: wrap; }
+.grow { flex: 1; }
+.tnum { font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--font-mono); }
+.muted { color: var(--color-fg-muted); }
+
+/* ── Status dot — from prototype-reference.md §3.4 ──────────────────────── */
+.status-dot { width: 9px; height: 9px; border-radius: 999px; flex: none; position: relative; }
+.status-dot.engaged  { background: var(--color-allow);  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-allow) 18%, transparent); }
+.status-dot.degraded { background: var(--color-warn);   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-warn) 18%, transparent); }
+.status-dot.disabled { background: var(--color-fg-subtle); }
+.status-dot.monitor  { background: transparent; border: 2px solid var(--color-observe); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-observe) 16%, transparent); }
+.status-dot.monitor::before { content: ""; position: absolute; inset: 50% auto auto 50%; width: 3px; height: 3px; border-radius: 999px; background: var(--color-observe); transform: translate(-50%, -50%); }
+
+/* ── Banner — from prototype styles.css ─────────────────────────────────── */
+.banner { display: flex; align-items: center; gap: 12px; padding: 12px 15px; border-radius: var(--radius-ui); border: 1px solid color-mix(in srgb, var(--color-warn) 38%, transparent); background: color-mix(in srgb, var(--color-warn) 9%, transparent); font-size: 13px; }
+.banner .bn-icon { color: var(--color-warn); flex: none; }
+.banner .bn-text { color: var(--color-fg); flex: 1; }
+.banner .bn-text b { font-weight: 650; }
+.banner.info { border-color: color-mix(in srgb, var(--color-accent) 35%, transparent); background: var(--color-accent-bg); }
+.banner.info .bn-icon { color: var(--color-accent); }
+
+/* ── Bar breakdown chart — from prototype styles.css ────────────────────── */
+.bar-row { display: grid; grid-template-columns: 92px 1fr 56px; align-items: center; gap: 12px; padding: 7px 0; }
+.bar-row .bar-label { font-size: 12.5px; color: var(--color-fg-muted); font-family: var(--font-mono); }
+.bar-track { height: 9px; border-radius: 999px; background: var(--color-surface-2); overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 999px; background: var(--color-accent); transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
+.bar-row .bar-val { font-size: 12.5px; text-align: right; font-variant-numeric: tabular-nums; color: var(--color-fg); }
+.bar-empty { font-size: 13px; color: var(--color-fg-muted); padding: 8px 0; }
+
+/* ── Sticky save bar ─────────────────────────────────────────────────────── */
+.sticky-save { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-ui); padding: 10px 16px; box-shadow: var(--shadow-pop); z-index: 100; font-size: 13px; min-width: 480px; }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.btn { display: inline-flex; align-items: center; gap: 6px; border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 550; cursor: pointer; transition: background 0.13s, color 0.13s; }
+.btn-sm { height: 30px; padding: 0 13px; }
+.btn-ghost { background: none; color: var(--color-fg-muted); }
+.btn-ghost:hover { background: var(--color-surface-2); color: var(--color-fg); }
+.btn-primary { background: var(--color-accent); color: var(--color-bg); }
+.btn-primary:hover { background: var(--color-accent-strong); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ── Badge ───────────────────────────────────────────────────────────────── */
+.badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 3px 9px; border-radius: var(--radius-pill); }
+.badge-enforce { background: color-mix(in srgb, var(--color-allow) 16%, transparent); color: var(--color-allow); }
+.badge-monitor { background: color-mix(in srgb, var(--color-observe) 16%, transparent); color: var(--color-observe); }
+.badge-off { background: var(--color-surface-2); color: var(--color-fg-subtle); }
+.badge-allow  { background: color-mix(in srgb, var(--color-allow) 16%, transparent); color: var(--color-allow); }
+.badge-block  { background: color-mix(in srgb, var(--color-block) 16%, transparent); color: var(--color-block); }
+.badge-warn   { background: color-mix(in srgb, var(--color-warn) 16%, transparent); color: var(--color-warn); }
+.badge-observe { background: color-mix(in srgb, var(--color-observe) 16%, transparent); color: var(--color-observe); }
+.badge-neutral { background: var(--color-surface-2); color: var(--color-fg-muted); }
+.bdot { width: 7px; height: 7px; border-radius: 999px; background: currentColor; }
