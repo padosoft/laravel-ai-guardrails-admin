@@ -15,7 +15,17 @@ function displayValue(v: unknown): string {
   return JSON.stringify(v);
 }
 
-type ChangeRow = SettingsChangeRow & { id: number };
+// ── Relative time (fixed 'en' locale for determinism) ─────────────────────────
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
 
 function ActorCell({ actorId }: { actorId: string | null }) {
   const isSystem = !actorId;
@@ -61,7 +71,7 @@ function DiffCell({ oldValue, newValue }: { oldValue: unknown; newValue: unknown
   );
 }
 
-const columns: Column<ChangeRow>[] = [
+const columns: Column<SettingsChangeRow>[] = [
   {
     key: 'actor',
     header: 'Actor',
@@ -82,8 +92,12 @@ const columns: Column<ChangeRow>[] = [
   {
     key: 'when',
     header: 'When',
-    width: 140,
-    render: (r) => <span className="cell-when">{r.occurred_at}</span>,
+    width: 90,
+    render: (r) => (
+      <span className="cell-when" title={r.occurred_at}>
+        {relativeTime(r.occurred_at)}
+      </span>
+    ),
   },
 ];
 
@@ -92,7 +106,7 @@ export function ChangeHistoryPage() {
   const [limit, setLimit] = useState(PAGE_SIZE);
 
   const { data, isLoading, isError, error } = useSettingsChanges(limit);
-  const changes = (data?.changes ?? []) as ChangeRow[];
+  const changes: SettingsChangeRow[] = data?.changes ?? [];
 
   const hasMore = changes.length >= limit && limit < SERVER_MAX;
 

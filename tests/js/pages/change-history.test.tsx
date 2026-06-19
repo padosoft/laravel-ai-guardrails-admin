@@ -1,7 +1,9 @@
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
-import { screen, within, waitFor } from '@testing-library/react';
+import { screen, within, waitFor, render } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DemoStateProvider } from '../../../resources/js/lib/demoState';
 import { ApiEndpointsProvider } from '../../../resources/js/lib/queries';
 import { runtimeConfig } from '../../../resources/js/config';
@@ -9,6 +11,34 @@ import { renderWithProviders } from '../support/render';
 import { server } from '../support/server';
 import type { SettingsChangesData } from '../../../resources/js/lib/api/types';
 import { ChangeHistoryPage } from '../../../resources/js/pages/ChangeHistoryPage';
+
+// Helper that renders the page inside a router that can detect navigation
+function renderWithNavSpy(initialPath = '/settings/audit') {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+
+  function LocationDisplay() {
+    const location = useLocation();
+    return <div data-testid="location-display">{location.pathname}</div>;
+  }
+
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <ApiEndpointsProvider config={runtimeConfig()}>
+          <DemoStateProvider>
+            <LocationDisplay />
+            <Routes>
+              <Route path="/settings/audit" element={<ChangeHistoryPage />} />
+              <Route path="/settings" element={<div data-testid="settings-page">Settings</div>} />
+            </Routes>
+          </DemoStateProvider>
+        </ApiEndpointsProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
 
 // ------------------------------------------------------------------ fixtures --
 
@@ -211,10 +241,11 @@ describe('ChangeHistoryPage', () => {
   });
 
   // ------------------------------------------------------------------
-  // "Load more" increases limit and refetches
+  // "Load more" REPLACES the list (React Query key includes limit)
+  // after clicking, the window is replaced — no appending/duplication
   // ------------------------------------------------------------------
-  it('Load more increases limit and refetches appended rows', async () => {
-    let callCount = 0;
+  it('Load more replaces list with the new window (not append)', async () => {
+    // secondPage has only 3 rows — the REPLACE window returned at limit>50
     const firstPage: SettingsChangesData = {
       changes: Array.from({ length: 50 }, (_, i) => ({
         id: i + 1,
@@ -227,7 +258,7 @@ describe('ChangeHistoryPage', () => {
     };
     const secondPage: SettingsChangesData = {
       changes: Array.from({ length: 3 }, (_, i) => ({
-        id: i + 1,
+        id: i + 51,
         actor_id: 'user:bob',
         key: `new.key.${i}`,
         old_value: null,
@@ -238,7 +269,6 @@ describe('ChangeHistoryPage', () => {
 
     server.use(
       http.get('*/settings/changes', ({ request }) => {
-        callCount++;
         const url = new URL(request.url);
         const limit = Number(url.searchParams.get('limit') ?? '50');
         if (limit > 50) {
@@ -254,16 +284,17 @@ describe('ChangeHistoryPage', () => {
     await waitFor(() =>
       expect(screen.getByTestId('agr-change-history')).toHaveAttribute('data-state', 'ready'),
     );
+    // first window: exactly 50 rows
+    expect(screen.getAllByTestId('agr-change-row')).toHaveLength(50);
 
     // Load more visible
     const loadMoreBtn = screen.getByTestId('agr-load-more');
     await user.click(loadMoreBtn);
 
-    // Should have refetched with larger limit and now show second page rows
+    // After refetch: window is REPLACED — exactly 3 rows (secondPage), not 50+3=53
     await waitFor(() => {
       const rows = screen.getAllByTestId('agr-change-row');
-      expect(rows.length).toBeGreaterThan(0);
-      // "user:bob" rows should appear
+      expect(rows).toHaveLength(3);
       const hasBob = rows.some((r) => r.textContent?.includes('user:bob'));
       expect(hasBob).toBe(true);
     });
@@ -339,22 +370,64 @@ describe('ChangeHistoryPage', () => {
   });
 
   // ------------------------------------------------------------------
-  // "Back to Settings" navigates
+  // "Back to Settings" navigates (must fail if onClick handler is removed)
   // ------------------------------------------------------------------
   it('"Back to Settings" navigates to /settings', async () => {
     withMock();
-    const { getByTestId } = renderChangeHistory();
+    renderWithNavSpy();
     const user = userEvent.setup();
 
     await waitFor(() =>
       expect(screen.getByTestId('agr-change-history')).toHaveAttribute('data-state', 'ready'),
     );
 
+    // Confirm we start at /settings/audit
+    expect(screen.getByTestId('location-display')).toHaveTextContent('/settings/audit');
+
     const backBtn = screen.getByTestId('agr-back-to-settings');
     await user.click(backBtn);
 
-    // MemoryRouter records navigation; verify the button is present and clickable
-    expect(backBtn).toBeVisible();
+    // After click, MemoryRouter must have navigated to /settings
+    await waitFor(() =>
+      expect(screen.getByTestId('location-display')).toHaveTextContent('/settings'),
+    );
+    expect(screen.getByTestId('settings-page')).toBeVisible();
+  });
+
+  // ------------------------------------------------------------------
+  // XSS-as-text: script/img injection in values renders as text, not DOM
+  // ------------------------------------------------------------------
+  it('renders XSS payloads as plain text without injecting DOM nodes', async () => {
+    const xssFixture: SettingsChangesData = {
+      changes: [
+        {
+          id: 1,
+          actor_id: 'user:alice',
+          key: 'input_screen.enabled',
+          old_value: '<script>alert(1)</script>',
+          new_value: '<img src=x onerror="alert(2)">',
+          occurred_at: '2026-06-19T10:00:00Z',
+        },
+      ],
+    };
+    withMock(xssFixture);
+    const { container } = renderChangeHistory();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-change-history')).toHaveAttribute('data-state', 'ready'),
+    );
+
+    const rows = screen.getAllByTestId('agr-change-row');
+    const oldChip = within(rows[0]).getByTestId('agr-old-value');
+    const newChip = within(rows[0]).getByTestId('agr-new-value');
+
+    // The literal strings must appear as textContent
+    expect(oldChip.textContent).toContain('<script>alert(1)</script>');
+    expect(newChip.textContent).toContain('<img src=x onerror="alert(2)">');
+
+    // No actual <script> or <img> elements must be injected
+    expect(container.querySelector('script')).toBeNull();
+    expect(container.querySelector('img[onerror]')).toBeNull();
   });
 
   // ------------------------------------------------------------------

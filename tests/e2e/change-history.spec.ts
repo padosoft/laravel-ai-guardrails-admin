@@ -94,10 +94,18 @@ test('change history shows empty-state when no changes', async ({ page }) => {
   );
 });
 
-// ── Test 3: Load more appends rows ───────────────────────────────────────────
-test('load more increases limit and appends rows', async ({ page }) => {
+// ── Test 3: Load more REPLACES the list (not append) ─────────────────────────
+test('load more replaces list with new window — not append', async ({ page }) => {
   const firstBatch = makeChanges(50, 'user:alice');
-  const secondBatch = makeChanges(3, 'user:bob');
+  // secondBatch has different ids (51–53) to avoid confusion with firstBatch ids 1–50
+  const secondBatch = Array.from({ length: 3 }, (_, i) => ({
+    id: i + 51,
+    actor_id: 'user:bob',
+    key: `key.${i}`,
+    old_value: i === 0 ? null : i,
+    new_value: i + 1,
+    occurred_at: '2026-06-19T10:00:00Z',
+  }));
 
   await page.route(/\/ai-guardrails\/api\/settings\/changes(\?|$)/, async (route) => {
     const url = new URL(route.request().url());
@@ -111,13 +119,17 @@ test('load more increases limit and appends rows', async ({ page }) => {
   await page.goto('/admin/ai-guardrails/settings/audit');
   await expect(page.getByTestId('agr-change-history')).toHaveAttribute('data-state', 'ready');
 
+  // First window: exactly 50 rows
+  await expect(page.locator('[data-testid="agr-change-row"]')).toHaveCount(50);
+
   // Load more button visible (50 rows = limit)
   await expect(page.getByTestId('agr-load-more')).toBeVisible();
 
   // Click load more
   await page.getByTestId('agr-load-more').click();
 
-  // Wait for rows from second batch to appear
+  // After replace: exactly 3 rows from secondBatch, NOT 53 (append regression guard)
+  await expect(page.locator('[data-testid="agr-change-row"]')).toHaveCount(3);
   await expect(page.locator('[data-testid="agr-change-row"]').filter({ hasText: 'user:bob' })).toHaveCount(3);
 });
 
