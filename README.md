@@ -50,7 +50,7 @@ You _could_ hit the core API with `curl` and read raw JSON. This package exists 
 - **See the audit, not the JSON.** Injection attempts with rule matches, hygiene-aware prompt excerpts, byte-accurate matched-span highlighting, and verdict badges are laid out as a readable case file.
 - **Approve or reject destructive calls in context.** The HITL queue shows tool name, scoped arguments, run ID, and age. The security-correct token-paste flow keeps approval authority with the notified human, not with the panel session.
 - **Trust the config you ship.** All four control surfaces (Tool Firewall, Input Screen, Output Handler, HITL) are rendered from live API data — "what the docs say" and "what production runs" cannot silently drift.
-- **Edit runtime settings safely.** Only the 31 runtime-overridable keys can be edited; infra keys are rendered read-only. Every change is append-only audited with the actor.
+- **Edit runtime settings safely.** Only the 32 runtime-overridable keys can be edited; infra keys are rendered read-only. Every change is append-only audited with the actor.
 - **Zero business logic to keep in sync.** The panel is a pure consumer of the core HTTP contract. Upgrade the engine and the panel reflects it.
 - **Drops in, stays out of the way.** One catch-all route, prebuilt Vite assets, your own auth middleware. It is not an auth provider and it owns no data.
 - **Honest when the engine is down.** If the core API is unreachable, every screen renders an explicit unavailable/error state instead of a blank page — verified by Playwright against the real production bundle.
@@ -63,7 +63,7 @@ You _could_ hit the core API with `curl` and read raw JSON. This package exists 
 - **Tool Firewall** — live posture (owner keys, reject-unknown-arguments toggle) with editable config and a rejections detail drawer.
 - **Output Handler** — sanitization stats, PII by-detector breakdown, and mode-aware config editing with monitor-mode banner.
 - **Approvals** — HITL queue with tool/scoped-args/run-id detail drawer and security-correct token-paste approve/reject.
-- **Settings** — full runtime config surface with 31 editable keys, read-only infra fields, regex validation, and Change History link.
+- **Settings** — full runtime config surface with 32 editable keys, read-only infra fields, regex validation, and Change History link.
 - **Change History** — append-only audit of every settings mutation with actor, old→new diff chips, and load-more.
 - **Try · Sandbox** — paste a prompt to preview screening verdict plus illustrative normalization diff; paste output to preview sanitization result.
 - Light and dark themes, per-user toggle, server-controlled default.
@@ -196,7 +196,7 @@ The SPA consumes the `padosoft/laravel-ai-guardrails` v1.1.0 HTTP API (`ai-guard
 | `GET` | `/audit` | Injection Audit list (keyset pagination, filters) |
 | `GET` | `/audit/{id}` | Injection Audit detail drawer |
 | `GET` | `/audit/trend` | Dashboard throughput area chart |
-| `GET` | `/firewall/log` | Tool Firewall rejections drawer |
+| `GET` | `/firewall` | Tool Firewall rejections drawer |
 | `GET` | `/output/stats` | Output Handler PII stats + by-detector breakdown |
 | `GET` | `/approvals` | HITL Approvals queue |
 | `POST` | `/approvals/{token}/approve` | Approve a destructive tool call |
@@ -221,7 +221,7 @@ The Approvals screen requires the operator to paste the plaintext approval token
 
 ### Settings — infra keys are read-only
 
-The Settings screen renders infrastructure keys (`audit.store`, `audit.table`, database connections, log tables) as disabled inputs with the placeholder "set via config (not runtime-editable)". The `PUT /settings` endpoint accepts only the 31 keys in the `settings.overridable` allow-list; the admin panel enforces this client-side as well via the `OVERRIDABLE_KEYS` constant.
+The Settings screen renders infrastructure keys (`audit.store`, `audit.table`, database connections, log tables) as disabled inputs with the placeholder "set via config (not runtime-editable)". The `PUT /settings` endpoint accepts only the 32 keys in the `settings.overridable` allow-list; the admin panel enforces this client-side as well via the `OVERRIDABLE_KEYS` constant.
 
 ### Dashboard — "clean" band definition
 

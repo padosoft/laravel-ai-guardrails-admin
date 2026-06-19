@@ -14,19 +14,6 @@ import { SettingsPage } from './pages/SettingsPage';
 import { ChangeHistoryPage } from './pages/ChangeHistoryPage';
 import { TryPage } from './pages/TryPage';
 
-function Placeholder({ title }: { title: string }) {
-  return (
-    <div className="page">
-      <section data-state="ready" data-testid={`agr-page-${title.toLowerCase().replace(/\s+/g, '-')}`}>
-        <div className="placeholder">
-          <h1>{title}</h1>
-          <p>This screen lands in a later task.</p>
-        </div>
-      </section>
-    </div>
-  );
-}
-
 function Providers({
   children,
   config,

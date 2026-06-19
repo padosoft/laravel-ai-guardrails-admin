@@ -200,11 +200,18 @@ export function FirewallPage() {
       }
       void queryClient.invalidateQueries({ queryKey: queryKeys.settings() });
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } };
-      const msg =
-        e?.response?.data?.errors
-          ? Object.values(e.response.data.errors).flat().join('; ')
-          : e?.response?.data?.message ?? 'Save failed.';
+      // The API client normalizes errors to ApiError instances (errors.ts).
+      // ApiError carries `.errors` and `.message` directly (no `.response` wrapper).
+      // Fallback to the raw AxiosError shape for any un-normalised paths.
+      const e = err as {
+        errors?: Record<string, string[]>;
+        message?: string;
+        response?: { data?: { message?: string; errors?: Record<string, string[]> } };
+      };
+      const fieldErrors = e?.errors ?? e?.response?.data?.errors;
+      const msg = fieldErrors
+        ? Object.values(fieldErrors).flat().join('; ')
+        : e?.message ?? e?.response?.data?.message ?? 'Save failed.';
       setSaveError(msg);
     } finally {
       setSaving(false);

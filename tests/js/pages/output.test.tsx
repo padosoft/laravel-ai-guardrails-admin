@@ -556,6 +556,44 @@ describe('OutputPage', () => {
   });
 
   // ------------------------------------------------------------------
+  // 422 normalized ApiError: server validation message shown in agr-save-error
+  // (not the generic "Save failed." fallback)
+  // ------------------------------------------------------------------
+  it('422 surfaces the server validation message from normalized ApiError (not generic fallback)', async () => {
+    server.use(
+      http.get('*/output/stats', () =>
+        HttpResponse.json(envelope('output.stats', outputStatsFixture)),
+      ),
+      http.get('*/settings', () =>
+        HttpResponse.json(envelope('settings', settingsFixture)),
+      ),
+      http.put('*/settings', () =>
+        HttpResponse.json(
+          { message: 'Validation failed', errors: { 'output_handler.html_mode': ['html_mode must be escape or allowlist'] } },
+          { status: 422 },
+        ),
+      ),
+    );
+
+    renderOutput();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-output')).toHaveAttribute('data-state', 'ready'),
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('switch', { name: /sanitize html/i }));
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      const errorEl = screen.getByTestId('agr-save-error');
+      // Must show the specific server message, not the generic "Save failed."
+      expect(errorEl).toHaveTextContent('html_mode must be escape or allowlist');
+      expect(errorEl).not.toHaveTextContent('Save failed.');
+    });
+  });
+
+  // ------------------------------------------------------------------
   // data-state=error when stats API fails
   // ------------------------------------------------------------------
   it('shows data-state=error when output/stats API fails', async () => {

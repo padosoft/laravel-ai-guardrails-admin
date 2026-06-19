@@ -391,6 +391,44 @@ describe('FirewallPage', () => {
   });
 
   // ------------------------------------------------------------------
+  // 422 normalized ApiError: server validation message shown in agr-save-error
+  // (not the generic "Save failed." fallback)
+  // ------------------------------------------------------------------
+  it('422 surfaces the server validation message from normalized ApiError (not generic fallback)', async () => {
+    server.use(
+      http.get('*/firewall', () =>
+        HttpResponse.json(envelope('firewall.list', firewallFixture)),
+      ),
+      http.get('*/settings', () =>
+        HttpResponse.json(envelope('settings', settingsFixture)),
+      ),
+      http.put('*/settings', () =>
+        HttpResponse.json(
+          { message: 'Validation failed', errors: { 'tool_firewall.owner_keys': ['Owner key must not contain spaces'] } },
+          { status: 422 },
+        ),
+      ),
+    );
+
+    renderFirewall();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-firewall')).toHaveAttribute('data-state', 'ready'),
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('switch', { name: /firewall enabled/i }));
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      const errorEl = screen.getByTestId('agr-save-error');
+      // Must show the specific server message, not the generic "Save failed."
+      expect(errorEl).toHaveTextContent('Owner key must not contain spaces');
+      expect(errorEl).not.toHaveTextContent('Save failed.');
+    });
+  });
+
+  // ------------------------------------------------------------------
   // M-4a: Editing back to original value clears dirty (toggle round-trip)
   // ------------------------------------------------------------------
   it('toggling enabled off then back on clears dirty (edit-back-to-original)', async () => {
