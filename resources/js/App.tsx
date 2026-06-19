@@ -5,6 +5,7 @@ import { type AiGuardrailsAdminAppProps, routeBase, runtimeConfig } from './conf
 import { ApiEndpointsProvider } from './lib/queries';
 import { DemoStateProvider } from './lib/demoState';
 import { Shell } from './shell/Shell';
+import { DashboardPage } from './pages/DashboardPage';
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -58,7 +59,7 @@ export function AiGuardrailsAdminApp({ config, embedded = false }: AiGuardrailsA
     <Providers config={resolved} embedded={embedded}>
       <Routes>
         <Route element={<Shell />}>
-          <Route index element={<Placeholder title="Dashboard" />} />
+          <Route index element={<DashboardPage />} />
           <Route path="/audit" element={<Placeholder title="Injection Audit" />} />
           <Route path="/firewall" element={<Placeholder title="Tool Firewall" />} />
           <Route path="/output" element={<Placeholder title="Output Handler" />} />
