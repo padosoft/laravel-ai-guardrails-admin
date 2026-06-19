@@ -61,11 +61,32 @@ function VerdictBadge({ verdict }: { verdict: VerdictKind }) {
 }
 
 // ── Hygiene detection ────────────────────────────────────────────────────────
-// If prompt.length < prompt_length the server stored a shorter representation
-// (redacted, hashed, or truncated). We treat anything shorter as non-raw.
+// A prompt is "raw/highlightable" only when it is NOT a redaction marker, NOT a
+// hash-like token, and NOT shorter than the stored prompt_length (truncated).
+//
+// Hash pattern: hex strings (e.g. md5/sha256) or base64-ish fixed-length tokens
+// that look nothing like human text.  We consider a string hash-like when it
+// matches an all-hex pattern OR when it is a base64 token of fixed length (≥ 32
+// chars, only base64url chars, no spaces).
+//
+// Redaction markers: strings that are entirely wrapped in brackets or angle
+// brackets — e.g. "[REDACTED]", "<REDACTED>", "[HASH]", etc.
+
+const HASH_HEX_RE = /^[0-9a-f]{32,}$/i;
+const HASH_B64_RE = /^[A-Za-z0-9+/=_-]{32,}$/;
+const REDACT_MARKER_RE = /^\[.+]$|^<.+>$/;
+
+function isHashOrRedacted(prompt: string): boolean {
+  const t = prompt.trim();
+  return HASH_HEX_RE.test(t) || HASH_B64_RE.test(t) || REDACT_MARKER_RE.test(t);
+}
 
 function isRawPrompt(prompt: string, promptLength: number): boolean {
-  return prompt.length >= promptLength;
+  // Shorter than stored length → truncated/redacted/hashed representation
+  if (prompt.length < promptLength) return false;
+  // Looks like a hash or redaction marker → not highlightable raw text
+  if (isHashOrRedacted(prompt)) return false;
+  return true;
 }
 
 // ── Relative time ────────────────────────────────────────────────────────────
@@ -81,17 +102,42 @@ function relativeTime(iso: string): string {
 }
 
 // ── PromptExcerpt (with matched-span highlight) ──────────────────────────────
+// PHP stores match_start/match_end as UTF-8 BYTE offsets.  JS strings are
+// UTF-16; for any multibyte character the indices misalign if we use .slice()
+// directly.  We convert via TextEncoder/TextDecoder to stay byte-accurate.
+//
+// Safety guarantees:
+//   • start/end are clamped to [0, byteLength].
+//   • start is clamped to be ≤ end.
+//   • On any invalid/out-of-range span we render without a highlight.
 
 function PromptExcerpt({ text, span }: { text: string; span: [number, number] | null }) {
   if (!span) {
     return <div className="code-block prompt-excerpt">{text}</div>;
   }
-  const [s, e] = span;
+
+  const bytes = new TextEncoder().encode(text);
+  const byteLen = bytes.length;
+
+  // Clamp and validate
+  const rawStart = Math.max(0, Math.min(span[0], byteLen));
+  const rawEnd = Math.max(rawStart, Math.min(span[1], byteLen));
+
+  if (rawStart === rawEnd || rawStart >= byteLen) {
+    // Degenerate or out-of-range span — render plain
+    return <div className="code-block prompt-excerpt">{text}</div>;
+  }
+
+  const decoder = new TextDecoder();
+  const pre = decoder.decode(bytes.slice(0, rawStart));
+  const mark = decoder.decode(bytes.slice(rawStart, rawEnd));
+  const post = decoder.decode(bytes.slice(rawEnd));
+
   return (
     <div className="code-block prompt-excerpt">
-      {text.slice(0, s)}
-      <mark role="mark">{text.slice(s, e)}</mark>
-      {text.slice(e)}
+      {pre}
+      <mark role="mark">{mark}</mark>
+      {post}
     </div>
   );
 }
@@ -99,7 +145,7 @@ function PromptExcerpt({ text, span }: { text: string; span: [number, number] | 
 // ── PromptHygiene ────────────────────────────────────────────────────────────
 
 function PromptHygiene({ prompt, promptLength }: { prompt: string; promptLength: number }) {
-  const isHash = /^[0-9a-f]{32,}$/i.test(prompt.trim());
+  const isHash = HASH_HEX_RE.test(prompt.trim());
   const word = isHash ? 'hashed' : prompt.length < promptLength ? 'redacted or truncated' : 'non-raw';
   return (
     <div className="privacy-panel" data-testid="agr-prompt-hygiene">
@@ -224,8 +270,15 @@ export function AuditPage() {
   const [principalFilter, setPrincipalFilter] = useState('');
   const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [allEntries, setAllEntries] = useState<AuditSummary[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+
+  // Helper to reset pagination whenever filter values change.  Calling these
+  // resets in the same event-handler flush as the filter setter is the
+  // StrictMode-safe way to guarantee no stale-cursor request is ever fired.
+  function resetPagination() {
+    setCursor(undefined);
+    setAllEntries([]);
+  }
 
   const filters: AuditFilters = {
     q: q || undefined,
@@ -237,27 +290,6 @@ export function AuditPage() {
 
   const { data, isLoading, isError, error } = useAuditList(filters);
 
-  // When filters change (not cursor), reset accumulated entries
-  const filterKey = JSON.stringify({ q, verdictFilter, ruleFilter, principalFilter });
-  const [lastFilterKey, setLastFilterKey] = useState(filterKey);
-
-  if (filterKey !== lastFilterKey) {
-    setLastFilterKey(filterKey);
-    setCursor(undefined);
-    setAllEntries([]);
-    setNextCursor(null);
-  }
-
-  // Accumulate entries when data arrives
-  if (data && data.entries) {
-    const ids = new Set(allEntries.map((e) => e.id));
-    const newEntries = data.entries.filter((e) => !ids.has(e.id));
-    if (newEntries.length > 0) {
-      // Use functional update pattern via effect workaround: directly set on first data
-      // We need to handle this synchronously in render to avoid flicker
-    }
-  }
-
   // Defensive: a malformed/empty envelope may omit `entries` — never assume it is an array.
   const pageEntries = data?.entries ?? [];
 
@@ -267,8 +299,7 @@ export function AuditPage() {
     isEmpty: !isLoading && !isError && allEntries.length === 0 && pageEntries.length === 0,
   });
 
-  // Merge new entries: done outside render guard for simplicity
-  // (react-query ensures data is stable between renders with same query key)
+  // Merge new page entries into the accumulated list, de-duplicating by id.
   const displayEntries = (() => {
     if (!data) return allEntries;
     const ids = new Set(allEntries.map((e) => e.id));
@@ -277,9 +308,8 @@ export function AuditPage() {
   })();
 
   const handleLoadMore = () => {
-    // Snapshot current merged entries before changing cursor
+    // Snapshot current merged entries before advancing the cursor
     setAllEntries(displayEntries);
-    setNextCursor(data?.next_cursor ?? null);
     setCursor(data?.next_cursor ?? undefined);
   };
 
@@ -304,10 +334,13 @@ export function AuditPage() {
         ),
     },
     {
+      // The list-entry shape has no principal_id; it is only available in the
+      // detail (drawer).  Rendering prompt text here as identity was misleading
+      // — show an em-dash placeholder instead.  The real value appears in the drawer.
       key: 'principal_id',
       header: 'Principal',
       width: 84,
-      render: (r) => <span className="cell-mono">{r.prompt_preview?.slice(0, 8) || '—'}</span>,
+      render: () => <span className="subtle">—</span>,
     },
     {
       key: 'prompt',
@@ -359,6 +392,7 @@ export function AuditPage() {
               aria-label="Search"
               onChange={(e) => {
                 setQ(e.target.value);
+                resetPagination();
               }}
             />
           </div>
@@ -366,7 +400,10 @@ export function AuditPage() {
           <select
             className="select"
             value={verdictFilter}
-            onChange={(e) => setVerdictFilter(e.target.value as VerdictFilter)}
+            onChange={(e) => {
+              setVerdictFilter(e.target.value as VerdictFilter);
+              resetPagination();
+            }}
             aria-label="Verdict filter"
           >
             <option value="all">Verdict: all</option>
@@ -380,7 +417,10 @@ export function AuditPage() {
             className="input mono"
             style={{ width: 130 }}
             value={ruleFilter}
-            onChange={(e) => setRuleFilter(e.target.value)}
+            onChange={(e) => {
+              setRuleFilter(e.target.value);
+              resetPagination();
+            }}
             placeholder="rule_id"
             aria-label="Rule filter"
           />
@@ -389,7 +429,10 @@ export function AuditPage() {
             className="input mono"
             style={{ width: 110 }}
             value={principalFilter}
-            onChange={(e) => setPrincipalFilter(e.target.value)}
+            onChange={(e) => {
+              setPrincipalFilter(e.target.value);
+              resetPagination();
+            }}
             placeholder="principal"
             aria-label="Principal id"
           />

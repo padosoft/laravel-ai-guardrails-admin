@@ -105,6 +105,41 @@ const detailFixtureRedacted: AuditDetailData = {
   },
 };
 
+// Detail fixture with hashed prompt (hex hash whose .length >= prompt_length)
+const detailFixtureHashed: AuditDetailData = {
+  entry: {
+    id: 103,
+    blocked: false,
+    rule_id: null,
+    principal_id: 'user_77',
+    ruleset_version: 'v1',
+    // 64-char hex SHA-256 hash; length(64) >= prompt_length(30) → should still be treated as non-raw
+    prompt: 'a3f5c2d1e4b6789012345678abcdef0123456789abcdef0123456789abcdef01',
+    prompt_length: 30,
+    errored_rule_ids: [],
+    matched_span: [0, 10],
+    occurred_at: '2026-06-18T09:00:00+00:00',
+  },
+};
+
+// Detail fixture for multibyte UTF-8 highlight test
+// emoji "🔥" is 4 UTF-8 bytes.  "🔥 bad" has bytes [0xF0,0x9F,0x94,0xA5,0x20,0x62,0x61,0x64].
+// Byte span [5, 8] (0-indexed) = "bad"
+const detailFixtureMultibyte: AuditDetailData = {
+  entry: {
+    id: 105,
+    blocked: true,
+    rule_id: 'multibyte_rule',
+    principal_id: 'user_mb',
+    ruleset_version: 'v1',
+    prompt: '🔥 bad prompt here',
+    prompt_length: 18, // character count (JS .length) is 18; prompt is raw (same length)
+    errored_rule_ids: [],
+    matched_span: [5, 8], // byte offsets for "bad"
+    occurred_at: '2026-06-18T11:00:00+00:00',
+  },
+};
+
 // ------------------------------------------------------------------ helpers --
 
 function DemoForcer({ state }: { state: 'data' | 'loading' | 'empty' | 'error' }) {
@@ -141,6 +176,8 @@ function withDefaultMocks(opts: { page?: AuditListData; detailId?: number; detai
     http.get('*/audit/:id', ({ params }) => {
       const id = Number(params.id);
       if (id === 102) return HttpResponse.json(envelope('audit.detail', detailFixtureRedacted));
+      if (id === 103) return HttpResponse.json(envelope('audit.detail', detailFixtureHashed));
+      if (id === 105) return HttpResponse.json(envelope('audit.detail', detailFixtureMultibyte));
       return HttpResponse.json(envelope('audit.detail', opts.detail ?? detailFixtureRaw));
     }),
   );
@@ -169,6 +206,29 @@ describe('AuditPage', () => {
     expect(within(rows[1]).getByTestId('agr-verdict-badge')).toHaveTextContent(/observed/i);
     // Row 103: blocked=false, rule_id null → Allowed
     expect(within(rows[2]).getByTestId('agr-verdict-badge')).toHaveTextContent(/allowed/i);
+  });
+
+  // ------------------------------------------------------------------
+  // Important 1 — Principal column renders em-dash, not prompt text
+  // ------------------------------------------------------------------
+  it('Principal column renders em-dash for every list row (not prompt text)', async () => {
+    withDefaultMocks();
+    renderAudit();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-audit')).toHaveAttribute('data-state', 'ready'),
+    );
+
+    const rows = screen.getAllByTestId('agr-audit-row');
+    // Every row's Principal cell must show "—" and must NOT contain prompt text
+    for (const row of rows) {
+      // The Principal column is the 3rd <td> (0-indexed: verdict, rule, principal)
+      const cells = within(row).getAllByRole('cell');
+      const principalCell = cells[2];
+      expect(principalCell).toHaveTextContent('—');
+      // Must not contain the first 8 chars of any prompt preview
+      expect(principalCell.textContent).not.toMatch(/ignore p|SELECT \*|Hello, h/i);
+    }
   });
 
   // ------------------------------------------------------------------
@@ -229,6 +289,161 @@ describe('AuditPage', () => {
   });
 
   // ------------------------------------------------------------------
+  // New: Allowed filter sends blocked=0
+  // ------------------------------------------------------------------
+  it('verdict filter Allowed re-queries with blocked=0', async () => {
+    const capturedParams: Record<string, string>[] = [];
+    server.use(
+      http.get('*/audit', ({ request }) => {
+        const url = new URL(request.url);
+        capturedParams.push(Object.fromEntries(url.searchParams.entries()));
+        return HttpResponse.json(envelope('audit.list', { entries: [], next_cursor: null }));
+      }),
+      http.get('*/audit/:id', () => HttpResponse.json(envelope('audit.detail', detailFixtureRaw))),
+    );
+
+    renderAudit();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-audit')).toHaveAttribute('data-state', 'empty'),
+    );
+
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByLabelText('Verdict filter'), 'allowed');
+
+    await waitFor(() => {
+      const withBlocked = capturedParams.filter((p) => p.blocked !== undefined);
+      expect(withBlocked.length).toBeGreaterThan(0);
+      expect(withBlocked[withBlocked.length - 1].blocked).toBe('0');
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // Important 4 — Filter reset: changing filter clears accumulated rows
+  // ------------------------------------------------------------------
+  it('changing a filter after loading page 1 clears accumulated rows and resets to page 1', async () => {
+    const capturedRequests: { cursor?: string; blocked?: string }[] = [];
+
+    server.use(
+      http.get('*/audit', ({ request }) => {
+        const url = new URL(request.url);
+        const cursor = url.searchParams.get('cursor') ?? undefined;
+        const blocked = url.searchParams.get('blocked') ?? undefined;
+        capturedRequests.push({ cursor, blocked });
+
+        if (cursor === 'cursor_abc') {
+          return HttpResponse.json(envelope('audit.list', auditPage2));
+        }
+        // Return page1 for initial load; return empty for blocked filter
+        if (blocked === '1') {
+          return HttpResponse.json(envelope('audit.list', { entries: [], next_cursor: null }));
+        }
+        return HttpResponse.json(envelope('audit.list', auditPage1));
+      }),
+      http.get('*/audit/:id', () => HttpResponse.json(envelope('audit.detail', detailFixtureRaw))),
+    );
+
+    renderAudit();
+
+    // Wait for page 1 (3 rows)
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-audit')).toHaveAttribute('data-state', 'ready'),
+    );
+    expect(screen.getAllByTestId('agr-audit-row')).toHaveLength(3);
+
+    // Load page 2 (accumulate to 4 rows)
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /load more/i }));
+    await waitFor(() => {
+      expect(screen.getAllByTestId('agr-audit-row')).toHaveLength(4);
+    });
+
+    // Change the verdict filter → rows must reset to 0 (empty for blocked filter)
+    await user.selectOptions(screen.getByLabelText('Verdict filter'), 'blocked');
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-audit')).toHaveAttribute('data-state', 'empty'),
+    );
+
+    // Stale rows from previous filter must not persist
+    expect(screen.queryAllByTestId('agr-audit-row')).toHaveLength(0);
+
+    // The refetch must have gone out without a cursor param
+    const reloadRequest = capturedRequests.find((r) => r.blocked === '1');
+    expect(reloadRequest).toBeDefined();
+    expect(reloadRequest?.cursor).toBeUndefined();
+  });
+
+  // ------------------------------------------------------------------
+  // De-dup: same id in page 1 and page 2 renders once
+  // ------------------------------------------------------------------
+  it('de-duplicates rows: same id across pages renders only once', async () => {
+    const pageWithDupe: AuditListData = {
+      entries: [
+        {
+          id: 101,
+          blocked: true,
+          rule_id: 'ignore_previous',
+          ruleset_version: 'v1',
+          prompt_preview: 'ignore previous instructions and…',
+          prompt_length: 42,
+          errored: false,
+          occurred_at: '2026-06-18T10:00:00+00:00',
+        },
+      ],
+      next_cursor: 'cursor_abc',
+    };
+
+    const page2WithSameId: AuditListData = {
+      entries: [
+        {
+          // same id as page 1 — should be de-duped
+          id: 101,
+          blocked: true,
+          rule_id: 'ignore_previous',
+          ruleset_version: 'v1',
+          prompt_preview: 'duplicate!',
+          prompt_length: 10,
+          errored: false,
+          occurred_at: '2026-06-18T10:00:00+00:00',
+        },
+      ],
+      next_cursor: null,
+    };
+
+    server.use(
+      http.get('*/audit', ({ request }) => {
+        const url = new URL(request.url);
+        if (url.searchParams.get('cursor') === 'cursor_abc') {
+          return HttpResponse.json(envelope('audit.list', page2WithSameId));
+        }
+        return HttpResponse.json(envelope('audit.list', pageWithDupe));
+      }),
+      http.get('*/audit/:id', () => HttpResponse.json(envelope('audit.detail', detailFixtureRaw))),
+    );
+
+    renderAudit();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-audit')).toHaveAttribute('data-state', 'ready'),
+    );
+
+    expect(screen.getAllByTestId('agr-audit-row')).toHaveLength(1);
+
+    // Load more (page 2 returns same id)
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /load more/i }));
+
+    // Still only 1 unique row
+    await waitFor(() => {
+      expect(screen.getAllByTestId('agr-audit-row')).toHaveLength(1);
+    });
+
+    // "Load more" gone because page 2 had next_cursor=null
+    expect(screen.queryByRole('button', { name: /load more/i })).toBeNull();
+  });
+
+  // ------------------------------------------------------------------
   // Load more: appends next page; hides when next_cursor null
   // ------------------------------------------------------------------
   it('Load more appends next page and button hides when next_cursor is null', async () => {
@@ -282,6 +497,73 @@ describe('AuditPage', () => {
     expect(mark).toBeDefined();
     // The span is [0,28] → "ignore previous instructions"
     expect(mark.textContent).toBe('ignore previous instructions');
+  });
+
+  // ------------------------------------------------------------------
+  // Important 3 — Multibyte UTF-8 byte-offset highlight
+  // ------------------------------------------------------------------
+  it('highlights the correct substring when prompt contains multibyte chars before the span', async () => {
+    const page: AuditListData = {
+      entries: [
+        {
+          id: 105,
+          blocked: true,
+          rule_id: 'multibyte_rule',
+          ruleset_version: 'v1',
+          prompt_preview: '🔥 bad prompt here',
+          prompt_length: 18,
+          errored: false,
+          occurred_at: '2026-06-18T11:00:00+00:00',
+        },
+      ],
+      next_cursor: null,
+    };
+
+    withDefaultMocks({ page });
+    renderAudit();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-audit')).toHaveAttribute('data-state', 'ready'),
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getAllByTestId('agr-audit-row')[0]);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('agr-drawer')).toBeVisible();
+    });
+
+    const drawer = screen.getByTestId('agr-drawer');
+    // prompt = '🔥 bad prompt here', span bytes [5,8] = "bad"
+    // 🔥 = 4 bytes, space = 1 byte → byte 5 starts "bad"
+    const mark = within(drawer).getByRole('mark');
+    expect(mark.textContent).toBe('bad');
+  });
+
+  // ------------------------------------------------------------------
+  // Important 2 — Hash prompt shows hygiene label, not mark highlight
+  // ------------------------------------------------------------------
+  it('hex-hash prompt whose length >= prompt_length still shows hygiene label (not highlight)', async () => {
+    withDefaultMocks();
+    renderAudit();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-audit')).toHaveAttribute('data-state', 'ready'),
+    );
+
+    const user = userEvent.setup();
+    // Click third row (id=103, allowed, but detail returns hashed prompt)
+    await user.click(screen.getAllByTestId('agr-audit-row')[2]);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('agr-drawer')).toBeVisible();
+    });
+
+    const drawer = screen.getByTestId('agr-drawer');
+
+    // Should show hygiene label (not a highlight mark) for hash
+    expect(within(drawer).getByTestId('agr-prompt-hygiene')).toBeVisible();
+    expect(within(drawer).queryByRole('mark')).toBeNull();
   });
 
   // ------------------------------------------------------------------
