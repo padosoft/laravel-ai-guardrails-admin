@@ -6,3 +6,7 @@
 composer.lock
 /dist
 .DS_Store
+
+# Playwright artifacts
+playwright-report/
+test-results/

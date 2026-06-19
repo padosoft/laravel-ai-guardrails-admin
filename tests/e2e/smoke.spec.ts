@@ -26,7 +26,7 @@ test('mounts the shell and navigates to the audit screen', async ({ page }) => {
   await page.getByTestId('agr-nav-audit').click();
 
   await expect(page).toHaveURL(/\/admin\/ai-guardrails\/audit$/);
-  await expect(page.getByRole('heading', { name: 'Injection Audit' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Injection Audit Log/i })).toBeVisible();
 });
 
 test('toggles the theme', async ({ page }) => {
