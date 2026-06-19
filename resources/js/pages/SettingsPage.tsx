@@ -178,9 +178,8 @@ function sortedArr(arr: string[]): string[] {
 }
 
 function computeDirty(local: SettingsPosture, server: SettingsPosture): boolean {
-  // Master
-  if (local.enabled !== server.enabled) return true;
-  // Tool firewall
+  // NOTE: `enabled` (master kill-switch) is intentionally excluded — it is a
+  // deploy-time env var, NOT runtime-overridable. It is rendered read-only.
   if (local.tool_firewall.enabled !== server.tool_firewall.enabled) return true;
   if (local.tool_firewall.reject_unknown_arguments !== server.tool_firewall.reject_unknown_arguments) return true;
   if (local.tool_firewall.owner_keys.length !== server.tool_firewall.owner_keys.length) return true;
@@ -243,8 +242,7 @@ function changedKeys(local: SettingsPosture, server: SettingsPosture): Record<st
     }
   };
 
-  // Master
-  if (local.enabled !== server.enabled) add('enabled', local.enabled);
+  // NOTE: `enabled` (master kill-switch) is excluded — not runtime-overridable.
   // Tool firewall
   if (local.tool_firewall.enabled !== server.tool_firewall.enabled)
     add('tool_firewall.enabled', local.tool_firewall.enabled);
@@ -364,6 +362,8 @@ export function SettingsPage() {
   const [localPosture, setLocalPosture] = useState<SettingsPosture | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Per-pattern server-side 422 error messages keyed by rule id (or '*' = all)
+  const [patternFieldErrors, setPatternFieldErrors] = useState<Record<string, string>>({});
 
   const serverPosture = settingsData ? extractPosture(settingsData.settings) : null;
   const rulesetVersion = overviewData?.ruleset_version ?? '—';
@@ -393,6 +393,7 @@ export function SettingsPage() {
     if (!localPosture || !serverPosture || !patternsValid) return;
     setSaving(true);
     setSaveError(null);
+    setPatternFieldErrors({});
     try {
       const patch = changedKeys(localPosture, serverPosture);
       const confirmed = await updateSettings({ settings: patch });
@@ -401,12 +402,46 @@ export function SettingsPage() {
       }
       void queryClient.invalidateQueries({ queryKey: queryKeys.settings() });
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } };
-      const msg =
-        e?.response?.data?.errors
-          ? Object.values(e.response.data.errors).flat().join('; ')
-          : e?.response?.data?.message ?? 'Save failed.';
-      setSaveError(msg);
+      // The API client normalizes errors to ApiError instances (errors.ts).
+      // ApiError carries `.errors: Record<string, string[]>` and `.message` directly.
+      // Fallback to the raw AxiosError shape for any un-normalised paths.
+      const e = err as {
+        errors?: Record<string, string[]>;
+        message?: string;
+        response?: { data?: { message?: string; errors?: Record<string, string[]> } };
+      };
+      const errors = e?.errors ?? e?.response?.data?.errors;
+
+      // ── I6: route per-pattern 422 errors to inline field badges ─────────
+      // The server may report errors under two key shapes:
+      //   • "input_screen.patterns"            → applies to ALL currently-edited patterns
+      //   • "input_screen.patterns.{rid}"      → applies to a specific rule-id
+      // We collect both and surface them as per-rid inline badges.
+      if (errors && Object.keys(errors).length > 0) {
+        const fieldErrs: Record<string, string> = {};
+        const editedRids = localPosture ? Object.keys(localPosture.input_screen.patterns) : [];
+
+        for (const [errKey, msgs] of Object.entries(errors)) {
+          const msg = Array.isArray(msgs) ? msgs.join(' ') : String(msgs);
+          if (errKey === 'input_screen.patterns') {
+            // Whole-patterns key — apply to every currently-edited pattern field
+            for (const rid of editedRids) {
+              fieldErrs[rid] = msg;
+            }
+          } else if (errKey.startsWith('input_screen.patterns.')) {
+            const rid = errKey.slice('input_screen.patterns.'.length);
+            fieldErrs[rid] = msg;
+          }
+        }
+        if (Object.keys(fieldErrs).length > 0) {
+          setPatternFieldErrors(fieldErrs);
+        }
+
+        const msg = Object.values(errors).flat().join('; ');
+        setSaveError(msg);
+      } else {
+        setSaveError(e?.message ?? e?.response?.data?.message ?? 'Save failed.');
+      }
     } finally {
       setSaving(false);
     }
@@ -418,6 +453,7 @@ export function SettingsPage() {
       setLocalPosture(JSON.parse(JSON.stringify(serverPosture)) as SettingsPosture);
     }
     setSaveError(null);
+    setPatternFieldErrors({});
   }
 
   // ── Updater helpers ──────────────────────────────────────────────────────
@@ -477,11 +513,14 @@ export function SettingsPage() {
             {/* ── Master ──────────────────────────────────────────────────── */}
             <div className="section-label" style={{ margin: '22px 0 11px' }}>Master</div>
             <div className="panel panel-pad">
+              {/* C1: `enabled` is a deploy-time env var — NOT runtime-overridable.
+                  Rendered disabled so it cannot trigger dirty state or enter the PATCH. */}
               <Toggle
                 name="Guardrails enabled"
-                hint="Kill-switch — when off, every control degrades to pass-through."
+                hint="Set via config (not runtime-editable) — deploy-time kill-switch."
                 on={p.enabled}
-                onChange={(v) => upd((n) => { n.enabled = v; })}
+                disabled
+                testId="agr-readonly-enabled"
               />
             </div>
 
@@ -540,28 +579,53 @@ export function SettingsPage() {
                 >
                   <div className="flex col gap-8">
                     {Object.entries(p.input_screen.patterns).map(([rid, rx]) => {
-                      const valid = isValidPattern(rx);
+                      const localInvalid = !isValidPattern(rx);
+                      const serverErr = patternFieldErrors[rid] ?? null;
+                      const hasError = localInvalid || serverErr !== null;
                       return (
-                        <div key={rid} className="flex items-center gap-8">
-                          <span className="chip mono" style={{ minWidth: 150, justifyContent: 'flex-start' }}>{rid}</span>
-                          <input
-                            className="input mono"
-                            style={{
-                              flexGrow: 1,
-                              fontSize: 11.5,
-                              borderColor: valid ? undefined : 'var(--color-block)',
-                            }}
-                            data-testid={`agr-pattern-input-${rid}`}
-                            value={rx}
-                            onChange={(e) => upd((n) => { n.input_screen.patterns[rid] = e.target.value; })}
-                          />
-                          {!valid && (
+                        <div key={rid} className="flex col gap-4">
+                          <div className="flex items-center gap-8">
+                            <span className="chip mono" style={{ minWidth: 150, justifyContent: 'flex-start' }}>{rid}</span>
+                            <input
+                              className="input mono"
+                              style={{
+                                flexGrow: 1,
+                                fontSize: 11.5,
+                                borderColor: hasError ? 'var(--color-block)' : undefined,
+                              }}
+                              data-testid={`agr-pattern-input-${rid}`}
+                              value={rx}
+                              onChange={(e) => {
+                                upd((n) => { n.input_screen.patterns[rid] = e.target.value; });
+                                // Clear the server-side error for this rid when the user edits
+                                if (patternFieldErrors[rid]) {
+                                  setPatternFieldErrors((prev) => {
+                                    const next = { ...prev };
+                                    delete next[rid];
+                                    return next;
+                                  });
+                                }
+                              }}
+                            />
+                            {hasError && (
+                              <span
+                                className="badge badge-block"
+                                data-testid={`agr-pattern-error-${rid}`}
+                                title={serverErr ?? 'Invalid PCRE pattern'}
+                              >
+                                <AlertTriangle size={11} />
+                              </span>
+                            )}
+                          </div>
+                          {serverErr && (
                             <span
-                              className="badge badge-block"
-                              data-testid={`agr-pattern-error-${rid}`}
-                              title="Invalid PCRE pattern"
+                              style={{
+                                fontSize: 11.5,
+                                color: 'var(--color-block)',
+                                paddingLeft: 158,
+                              }}
                             >
-                              <AlertTriangle size={11} />
+                              {serverErr}
                             </span>
                           )}
                         </div>
@@ -766,9 +830,15 @@ export function SettingsPage() {
                       className="input mono"
                       style={{ width: 120 }}
                       type="number"
+                      step="1"
+                      min="0"
                       data-testid="agr-input-retention-days"
                       value={p.retention.days}
-                      onChange={(e) => upd((n) => { n.retention.days = Number(e.target.value); })}
+                      onChange={(e) => {
+                        // M3: guard to non-negative integer client-side; server validates as backstop
+                        const v = Math.max(0, Math.trunc(Number(e.target.value)));
+                        upd((n) => { n.retention.days = v; });
+                      }}
                     />
                   </Field>
                   <Field label="Strategy">

@@ -185,6 +185,74 @@ describe('SettingsPage', () => {
   });
 
   // ------------------------------------------------------------------
+  // C1: Master enabled toggle is read-only (disabled), never marks dirty,
+  //     never enters the PATCH
+  // ------------------------------------------------------------------
+  it('C1: master enabled toggle is disabled (not runtime-editable)', async () => {
+    withDefaultMocks();
+    renderSettings();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-settings')).toHaveAttribute('data-state', 'ready'),
+    );
+
+    const toggle = screen.getByTestId('agr-readonly-enabled');
+    expect(toggle).toBeDisabled();
+  });
+
+  it('C1: clicking master enabled toggle does not mark form dirty', async () => {
+    withDefaultMocks();
+    renderSettings();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-settings')).toHaveAttribute('data-state', 'ready'),
+    );
+
+    expect(screen.queryByTestId('agr-save-bar')).toBeNull();
+
+    const user = userEvent.setup();
+    // Attempt to click the disabled master toggle — should not dirty the form
+    const toggle = screen.getByTestId('agr-readonly-enabled');
+    await user.click(toggle);
+
+    expect(screen.queryByTestId('agr-save-bar')).toBeNull();
+  });
+
+  it('C1: editing other fields never includes `enabled` in the PATCH', async () => {
+    const capturedBodies: unknown[] = [];
+
+    server.use(
+      http.get('*/settings', () =>
+        HttpResponse.json(envelope('settings', settingsFixture)),
+      ),
+      http.get('*/overview', () =>
+        HttpResponse.json(envelope('overview', overviewFixture)),
+      ),
+      http.put('*/settings', async ({ request }) => {
+        const body = await request.json();
+        capturedBodies.push(body);
+        return HttpResponse.json(envelope('settings', settingsFixture));
+      }),
+    );
+
+    renderSettings();
+    await waitFor(() =>
+      expect(screen.getByTestId('agr-settings')).toHaveAttribute('data-state', 'ready'),
+    );
+
+    const user = userEvent.setup();
+    // Edit a normal overridable field
+    const input = screen.getByTestId('agr-input-refusal-message');
+    await user.clear(input);
+    await user.type(input, 'Changed');
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(capturedBodies).toHaveLength(1));
+    const body = capturedBodies[0] as { settings: Record<string, unknown> };
+    expect(Object.keys(body.settings)).not.toContain('enabled');
+  });
+
+  // ------------------------------------------------------------------
   // Editing an overridable field shows SaveBar
   // ------------------------------------------------------------------
   it('editing refusal_message shows SaveBar', async () => {
@@ -202,7 +270,7 @@ describe('SettingsPage', () => {
     await user.clear(input);
     await user.type(input, 'New refusal message');
 
-    expect(screen.getByTestId('agr-save-bar')).toBeDefined();
+    expect(screen.getByTestId('agr-save-bar')).toBeInTheDocument();
   });
 
   it('changing a mode segmented control shows SaveBar', async () => {
@@ -220,7 +288,7 @@ describe('SettingsPage', () => {
     const monitorBtn = screen.getByTestId('agr-mode-input_screen-monitor');
     await user.click(monitorBtn);
 
-    expect(screen.getByTestId('agr-save-bar')).toBeDefined();
+    expect(screen.getByTestId('agr-save-bar')).toBeInTheDocument();
   });
 
   // ------------------------------------------------------------------
@@ -308,7 +376,7 @@ describe('SettingsPage', () => {
 
     // Field error should appear
     await waitFor(() => {
-      expect(screen.getByTestId('agr-pattern-error-ignore_previous')).toBeDefined();
+      expect(screen.getByTestId('agr-pattern-error-ignore_previous')).toBeInTheDocument();
     });
 
     // Save button should be disabled (Save is BLOCKED when any pattern invalid)
@@ -355,9 +423,19 @@ describe('SettingsPage', () => {
 
     // SaveBar still present after failed save (edits not nulled)
     await waitFor(() => {
-      expect(screen.getByTestId('agr-save-bar')).toBeDefined();
-      expect(screen.getByTestId('agr-save-error')).toBeDefined();
+      expect(screen.getByTestId('agr-save-bar')).toBeInTheDocument();
+      expect(screen.getByTestId('agr-save-error')).toBeInTheDocument();
     });
+
+    // I6: per-pattern inline badge must appear for ALL currently-edited patterns
+    // (server error key was `input_screen.patterns` — applies to all edited rids)
+    await waitFor(() => {
+      expect(screen.getByTestId('agr-pattern-error-ignore_previous')).toBeInTheDocument();
+      expect(screen.getByTestId('agr-pattern-error-reveal_system_prompt')).toBeInTheDocument();
+    });
+
+    // Edits are preserved (SaveBar still dirty, form not reset)
+    expect(screen.getByTestId('agr-input-refusal-message')).toHaveValue('New message');
   });
 
   // ------------------------------------------------------------------
@@ -375,7 +453,7 @@ describe('SettingsPage', () => {
 
     // Change mode from 'enforce' to 'monitor'
     await user.click(screen.getByTestId('agr-mode-tool_firewall-monitor'));
-    expect(screen.getByTestId('agr-save-bar')).toBeDefined();
+    expect(screen.getByTestId('agr-save-bar')).toBeInTheDocument();
 
     // Change back to 'enforce'
     await user.click(screen.getByTestId('agr-mode-tool_firewall-enforce'));
@@ -439,7 +517,7 @@ describe('SettingsPage', () => {
     await user.clear(input);
     await user.type(input, 'Temporary message');
 
-    expect(screen.getByTestId('agr-save-bar')).toBeDefined();
+    expect(screen.getByTestId('agr-save-bar')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /discard/i }));
 
@@ -462,7 +540,7 @@ describe('SettingsPage', () => {
 
     // Remove delete_file chip
     await user.click(screen.getByRole('button', { name: /remove delete_file/i }));
-    expect(screen.getByTestId('agr-save-bar')).toBeDefined();
+    expect(screen.getByTestId('agr-save-bar')).toBeInTheDocument();
 
     // Re-add it
     const addBtn = screen.getByRole('button', { name: /add destructive tool/i });
@@ -486,6 +564,6 @@ describe('SettingsPage', () => {
       expect(screen.getByTestId('agr-settings')).toHaveAttribute('data-state', 'ready'),
     );
 
-    expect(screen.getByTestId('agr-change-history-btn')).toBeDefined();
+    expect(screen.getByTestId('agr-change-history-btn')).toBeInTheDocument();
   });
 });

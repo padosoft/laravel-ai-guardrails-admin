@@ -248,11 +248,20 @@ describe('ApprovalsPage', () => {
   // Submitting with token calls POST /approvals/{token}/approve and closes confirm drawer
   // ------------------------------------------------------------------
   it('submitting approve with token calls POST /approvals/{token}/approve then closes drawer', async () => {
+    // Deterministic: resolve only after we capture that the POST was called.
     let postCallCount = 0;
+    // After approve succeeds, the page re-fetches /approvals. Return a fixture
+    // WITHOUT the approved row so the invalidation resolves deterministically.
+    let getCallCount = 0;
+
     server.use(
-      http.get('*/approvals', () =>
-        HttpResponse.json(envelope('approvals', approvalsFixture)),
-      ),
+      http.get('*/approvals', () => {
+        getCallCount++;
+        // First fetch: return both rows. Subsequent fetches (post-approve refetch):
+        // return empty list so the row disappears deterministically.
+        const fixture = getCallCount === 1 ? approvalsFixture : emptyFixture;
+        return HttpResponse.json(envelope('approvals', fixture));
+      }),
       http.post('*/approvals/*/approve', () => {
         postCallCount++;
         return HttpResponse.json(envelope('approval.decision', { decision: 'approved' }));
@@ -273,18 +282,17 @@ describe('ApprovalsPage', () => {
     // Confirm drawer opens with token input
     expect(screen.getByTestId('agr-confirm-drawer')).toBeVisible();
 
-    // Enter token and submit
+    // Click the token input explicitly before typing to ensure focus (the Drawer
+    // auto-focuses the first focusable button after 60ms, which would steal focus).
+    await user.click(screen.getByTestId('agr-token-input'));
     await user.type(screen.getByTestId('agr-token-input'), 'tok123');
     await user.click(screen.getByTestId('agr-confirm-approve'));
 
-    // Confirm drawer closes on success
-    await waitFor(
-      () => expect(screen.queryByTestId('agr-confirm-drawer')).toBeNull(),
-      { timeout: 3000 },
-    );
+    // Wait for POST to have been called BEFORE asserting UI changes
+    await waitFor(() => expect(postCallCount).toBe(1));
 
-    // POST was called
-    expect(postCallCount).toBe(1);
+    // Confirm drawer closes on success — no arbitrary timeout crutch
+    await waitFor(() => expect(screen.queryByTestId('agr-confirm-drawer')).toBeNull());
   });
 
   // ------------------------------------------------------------------
@@ -292,10 +300,14 @@ describe('ApprovalsPage', () => {
   // ------------------------------------------------------------------
   it('submitting reject with token calls POST /approvals/{token}/reject then closes drawer', async () => {
     let postCallCount = 0;
+    let getCallCount = 0;
+
     server.use(
-      http.get('*/approvals', () =>
-        HttpResponse.json(envelope('approvals', approvalsFixture)),
-      ),
+      http.get('*/approvals', () => {
+        getCallCount++;
+        const fixture = getCallCount === 1 ? approvalsFixture : emptyFixture;
+        return HttpResponse.json(envelope('approvals', fixture));
+      }),
       http.post('*/approvals/*/reject', () => {
         postCallCount++;
         return HttpResponse.json(envelope('approval.decision', { decision: 'rejected' }));
@@ -316,18 +328,16 @@ describe('ApprovalsPage', () => {
     // Confirm drawer opens with token input
     expect(screen.getByTestId('agr-confirm-drawer')).toBeVisible();
 
-    // Enter token and submit
+    // Click the token input explicitly before typing to ensure focus
+    await user.click(screen.getByTestId('agr-token-input'));
     await user.type(screen.getByTestId('agr-token-input'), 'rej456');
     await user.click(screen.getByTestId('agr-confirm-reject'));
 
-    // Confirm drawer closes on success
-    await waitFor(
-      () => expect(screen.queryByTestId('agr-confirm-drawer')).toBeNull(),
-      { timeout: 3000 },
-    );
+    // Wait for POST to be called BEFORE asserting UI changes
+    await waitFor(() => expect(postCallCount).toBe(1));
 
-    // POST was called
-    expect(postCallCount).toBe(1);
+    // Confirm drawer closes on success
+    await waitFor(() => expect(screen.queryByTestId('agr-confirm-drawer')).toBeNull());
   });
 
   // ------------------------------------------------------------------
@@ -355,6 +365,7 @@ describe('ApprovalsPage', () => {
 
     const rows = screen.getAllByTestId('agr-approval-row');
     await user.click(within(rows[0]).getByRole('button', { name: /approve process_refund/i }));
+    await user.click(screen.getByTestId('agr-token-input'));
     await user.type(screen.getByTestId('agr-token-input'), 'tok');
     await user.click(screen.getByTestId('agr-confirm-approve'));
 
@@ -388,6 +399,7 @@ describe('ApprovalsPage', () => {
 
     const rows = screen.getAllByTestId('agr-approval-row');
     await user.click(within(rows[0]).getByRole('button', { name: /approve process_refund/i }));
+    await user.click(screen.getByTestId('agr-token-input'));
     await user.type(screen.getByTestId('agr-token-input'), 'wrongtok');
     await user.click(screen.getByTestId('agr-confirm-approve'));
 
