@@ -49,7 +49,7 @@ You _could_ hit the core API with `curl` and read raw JSON. This package exists 
 
 - **See the audit, not the JSON.** Injection attempts with rule matches, hygiene-aware prompt excerpts, byte-accurate matched-span highlighting, and verdict badges are laid out as a readable case file.
 - **Approve or reject destructive calls in context.** The HITL queue shows tool name, scoped arguments, run ID, and age. The security-correct token-paste flow keeps approval authority with the notified human, not with the panel session.
-- **Trust the config you ship.** All four control surfaces (Tool Firewall, Input Screen, Output Handler, HITL) are rendered from live API data — "what the docs say" and "what production runs" cannot silently drift.
+- **Trust the config you ship.** All five control surfaces (Tool Firewall, Input Screen, Output Handler, HITL, Provenance Gate) are rendered from live API data — "what the docs say" and "what production runs" cannot silently drift.
 - **Edit runtime settings safely.** Only the 32 runtime-overridable keys can be edited; infra keys are rendered read-only. Every change is append-only audited with the actor.
 - **Zero business logic to keep in sync.** The panel is a pure consumer of the core HTTP contract. Upgrade the engine and the panel reflects it.
 - **Drops in, stays out of the way.** One catch-all route, prebuilt Vite assets, your own auth middleware. It is not an auth provider and it owns no data.
@@ -62,6 +62,7 @@ You _could_ hit the core API with `curl` and read raw JSON. This package exists 
 - **Injection Audit** — paginated, filterable audit log with hygiene-aware prompt excerpts and byte-accurate matched-span highlighting.
 - **Tool Firewall** — live posture (owner keys, reject-unknown-arguments toggle) with editable config and a rejections detail drawer.
 - **Output Handler** — sanitization stats, PII by-detector breakdown, and mode-aware config editing with monitor-mode banner.
+- **Provenance Gate** — Control P decisions: tool calls the model made *while reading material nobody in your organisation wrote*. Three scopes, and the one that matters during rollout is **"Would have been refused"** — the calls that RAN under `monitor` and would be blocked under `enforce`. That is how you size the impact before you flip the switch.
 - **Approvals** — HITL queue with tool/scoped-args/run-id detail drawer and security-correct token-paste approve/reject.
 - **Settings** — full runtime config surface with 32 editable keys, read-only infra fields, regex validation, and Change History link.
 - **Change History** — append-only audit of every settings mutation with actor, old→new diff chips, and load-more.
@@ -198,6 +199,7 @@ The SPA consumes the `padosoft/laravel-ai-guardrails` v1.1.0 HTTP API (`ai-guard
 | `GET` | `/audit/trend` | Dashboard throughput area chart |
 | `GET` | `/firewall` | Tool Firewall rejections drawer |
 | `GET` | `/output/stats` | Output Handler PII stats + by-detector breakdown |
+| `GET` | `/provenance` | Provenance Gate decisions (`?blocked=0` = the monitor-rollout view) |
 | `GET` | `/approvals` | HITL Approvals queue |
 | `POST` | `/approvals/{token}/approve` | Approve a destructive tool call |
 | `POST` | `/approvals/{token}/reject` | Reject a destructive tool call |

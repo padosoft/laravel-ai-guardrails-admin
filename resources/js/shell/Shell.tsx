@@ -1,4 +1,5 @@
 import {
+  FileWarning,
   Filter,
   FlaskConical,
   Gavel,
@@ -35,6 +36,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/audit', label: 'Injection Audit', icon: List, testId: 'agr-nav-audit' },
       { to: '/firewall', label: 'Tool Firewall', icon: Shield, testId: 'agr-nav-firewall' },
       { to: '/output', label: 'Output Handler', icon: Filter, testId: 'agr-nav-output' },
+      { to: '/provenance', label: 'Provenance Gate', icon: FileWarning, testId: 'agr-nav-provenance' },
     ],
   },
   {

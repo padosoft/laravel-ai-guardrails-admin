@@ -5,6 +5,19 @@ All notable changes to `padosoft/laravel-ai-guardrails-admin` will be documented
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Provenance Gate page** (`/provenance`) — Control P decisions from `GET /provenance`, shipped in `padosoft/laravel-ai-guardrails` v1.5.0. Rows show the tool, the outcome (`refused` / `ran`), the grounding tiers, and the principal; the drawer explains which of the two happened and why.
+  - Three scopes, and the load-bearing one is **"Would have been refused"** (`?blocked=0`): the calls that RAN under `monitor` and would be blocked under `enforce`. That is the question a rollout is for, and it is a *different* question from "all decisions" — the page sends no `blocked` param at all on **All**, because `undefined` and `false` mean different things to the endpoint.
+  - The empty state distinguishes "nothing was gated" from "the control is not running", because the remedy is completely different: the second one tells you to enable it in monitor mode first.
+- **Control P on the Dashboard** — added to the control matrix, lettered **P** rather than E (A–D are lettered by the surface they guard; P by what it reads).
+
+### Changed
+
+- `ControlKey` gains `'provenance'`. This is the change that found the dashboard gap: widening the union made `tsc` reject the two `Record<ControlKey, …>` maps that had not been updated, which is exactly what that type is for.
+
 ## [1.0.0] — 2026-06-19
 
 Initial release. A complete React admin panel for the `padosoft/laravel-ai-guardrails` HTTP API
