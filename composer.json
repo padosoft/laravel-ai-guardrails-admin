@@ -17,7 +17,7 @@
         "illuminate/view": "^11.0|^12.0|^13.0"
     },
     "suggest": {
-        "padosoft/laravel-ai-guardrails": "^1.1 provides the HTTP guardrails API consumed by this admin panel."
+        "padosoft/laravel-ai-guardrails": "^1.5 provides the HTTP guardrails API consumed by this admin panel (the Provenance Gate page needs GET /provenance, added in 1.5.0)."
     },
     "require-dev": {
         "laravel/pint": "^1.24",
