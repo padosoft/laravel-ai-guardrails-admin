@@ -3,7 +3,7 @@ import { createContext, createElement, type PropsWithChildren, useContext, useMe
 import { type AiGuardrailsAdminRuntimeConfig } from '../config';
 import { createApiClient } from './api/client';
 import { aiGuardrailsEndpoints, type AiGuardrailsEndpoints, endpoints } from './api/endpoints';
-import { type AuditFilters, type FirewallFilters, type TrendRange } from './api/types';
+import { type AuditFilters, type FirewallFilters, type ProvenanceFilters, type TrendRange } from './api/types';
 
 export const queryKeys = {
   overview: () => ['agr', 'overview'] as const,
@@ -11,6 +11,7 @@ export const queryKeys = {
   auditDetail: (id: number) => ['agr', 'audit', id] as const,
   auditTrend: (range: TrendRange = {}) => ['agr', 'audit', 'trend', range] as const,
   firewall: (filters: FirewallFilters = {}) => ['agr', 'firewall', filters] as const,
+  provenance: (filters: ProvenanceFilters = {}) => ['agr', 'provenance', filters] as const,
   outputStats: (range: TrendRange = {}) => ['agr', 'output', range] as const,
   approvals: () => ['agr', 'approvals'] as const,
   settings: () => ['agr', 'settings'] as const,
@@ -59,6 +60,11 @@ export function useAuditTrend(range: TrendRange = {}) {
 export function useFirewall(filters: FirewallFilters = {}) {
   const api = useApiEndpoints();
   return useQuery({ queryKey: queryKeys.firewall(filters), queryFn: () => api.firewall(filters) });
+}
+
+export function useProvenance(filters: ProvenanceFilters = {}) {
+  const api = useApiEndpoints();
+  return useQuery({ queryKey: queryKeys.provenance(filters), queryFn: () => api.provenance(filters) });
 }
 
 export function useOutputStats(range: TrendRange = {}) {

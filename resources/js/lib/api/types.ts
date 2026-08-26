@@ -1,7 +1,7 @@
 // All shapes are the inner `data` object of the core v1.1.0 envelope, verbatim from
 // padosoft/laravel-ai-guardrails src/Http/* controllers + Resources.
 
-export type ControlKey = 'tool_firewall' | 'input_screen' | 'output_handler' | 'hitl';
+export type ControlKey = 'tool_firewall' | 'input_screen' | 'output_handler' | 'hitl' | 'provenance';
 export type ControlMode = 'enforce' | 'monitor' | 'off';
 export type Posture = 'Engaged' | 'Observing' | 'Disabled';
 
@@ -90,6 +90,24 @@ export interface FirewallRejection {
 
 export interface FirewallListData {
   entries: FirewallRejection[];
+  next_cursor: string | null;
+}
+
+// GET /provenance
+export type ProvenanceTier = 'trusted_internal' | 'untrusted_external' | 'machine_generated';
+
+export interface GatedToolCall {
+  id: number;
+  tool: string;
+  principal_id: string | null;
+  tiers: ProvenanceTier[];
+  /** false = the call RAN and would have been refused under enforcement (monitor). */
+  blocked: boolean;
+  occurred_at: string;
+}
+
+export interface ProvenanceListData {
+  entries: GatedToolCall[];
   next_cursor: string | null;
 }
 
@@ -182,6 +200,16 @@ export interface AuditFilters extends Record<string, unknown> {
 export interface FirewallFilters extends Record<string, unknown> {
   q?: string;
   principal_id?: string;
+  from?: string;
+  to?: string;
+  cursor?: string;
+}
+
+export interface ProvenanceFilters extends Record<string, unknown> {
+  q?: string;
+  principal_id?: string;
+  /** Omit for both. `false` is the monitor-rollout view, not a "no" — see ProvenancePage. */
+  blocked?: boolean;
   from?: string;
   to?: string;
   cursor?: string;

@@ -11,18 +11,22 @@ import { useAuditTrend, useOverview } from '../lib/queries';
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
-const CONTROL_ORDER: ControlKey[] = ['tool_firewall', 'input_screen', 'output_handler', 'hitl'];
+const CONTROL_ORDER: ControlKey[] = ['tool_firewall', 'input_screen', 'output_handler', 'hitl', 'provenance'];
 const CONTROL_LETTER: Record<ControlKey, string> = {
   tool_firewall: 'A',
   input_screen: 'B',
   output_handler: 'C',
   hitl: 'D',
+  // Not 'E': the package calls it Control P, because it is the odd one out
+  // — A–D are lettered by the surface they guard, P by what it reads.
+  provenance: 'P',
 };
 const CONTROL_ROUTE: Record<ControlKey, string> = {
   tool_firewall: '/firewall',
   input_screen: '/audit',
   output_handler: '/output',
   hitl: '/approvals',
+  provenance: '/provenance',
 };
 
 /**

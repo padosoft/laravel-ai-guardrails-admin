@@ -11,6 +11,8 @@ import {
   FirewallListData,
   Overview,
   OutputStatsData,
+  ProvenanceFilters,
+  ProvenanceListData,
   SanitizeResult,
   ScreenResult,
   SettingsChangesData,
@@ -46,6 +48,10 @@ export function aiGuardrailsEndpoints(client: AxiosInstance = createApiClient())
 
     async firewall(filters: FirewallFilters = {}): Promise<FirewallListData> {
       return client.get<FirewallListData>('/firewall', { params: params(filters) }) as unknown as Promise<FirewallListData>;
+    },
+
+    async provenance(filters: ProvenanceFilters = {}): Promise<ProvenanceListData> {
+      return client.get<ProvenanceListData>('/provenance', { params: params(filters) }) as unknown as Promise<ProvenanceListData>;
     },
 
     async outputStats(range: TrendRange = {}): Promise<OutputStatsData> {

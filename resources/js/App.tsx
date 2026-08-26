@@ -9,6 +9,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { AuditPage } from './pages/AuditPage';
 import { FirewallPage } from './pages/FirewallPage';
 import { OutputPage } from './pages/OutputPage';
+import { ProvenancePage } from './pages/ProvenancePage';
 import { ApprovalsPage } from './pages/ApprovalsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ChangeHistoryPage } from './pages/ChangeHistoryPage';
@@ -57,6 +58,7 @@ export function AiGuardrailsAdminApp({ config, embedded = false }: AiGuardrailsA
           <Route path="/audit" element={<AuditPage />} />
           <Route path="/firewall" element={<FirewallPage />} />
           <Route path="/output" element={<OutputPage />} />
+          <Route path="/provenance" element={<ProvenancePage />} />
           <Route path="/approvals" element={<ApprovalsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/settings/audit" element={<ChangeHistoryPage />} />
